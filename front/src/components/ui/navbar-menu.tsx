@@ -119,11 +119,11 @@ export const ProductItem = ({
 
 export const HoveredLink = ({ children, href, ...rest }: any) => {
   return (
-    <a
-      href={href}
-      onClick={(e) => { e.preventDefault(); window.history.pushState({}, '', href); window.dispatchEvent(new PopStateEvent('popstate')); }}
+    <Link
+      to={href}
       {...rest}
       className="text-white hover:text-purple-300 transition-colors font-medium"
+    >
     >
       {children}
     </a>
