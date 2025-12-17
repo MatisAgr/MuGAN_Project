@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Data processing
+data/processed/
+outputs/
+
+# Model checkpoints (trop volumineux)
+models/*/checkpoint*
+models/*/*.h5
+models/*/*.pb
+models/*/saved_model/
+
+# TensorFlow
+.tf_cache/
+*.tfrecord
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fichiers générés lors des tests
+generated_*.mid
+*.mid.bak
+
+# Logs
+*.log
+logs/
+
+# Jupyter
+.ipynb_checkpoints/
