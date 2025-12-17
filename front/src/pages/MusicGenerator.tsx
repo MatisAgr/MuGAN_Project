@@ -2,13 +2,18 @@ import { useState, useRef, useEffect } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import { Play, Pause, Music, Download, RotateCcw } from 'lucide-react';
 import { useAudioPlayer } from '@/contexts/AudioPlayerContext';
+import { generateMusic } from '@/callApi/generator';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 export default function MusicGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
+  const [generatedTitle, setGeneratedTitle] = useState<string>('');
   const [prompt, setPrompt] = useState('');
   const [duration, setDuration] = useState(30);
   const [temperature, setTemperature] = useState(1.0);
+  const [error, setError] = useState<string | null>(null);
   
   const { playTrack, currentTrack, isPlaying, setIsPlaying, setCurrentTrack, audioElement } = useAudioPlayer();
   
@@ -31,7 +36,10 @@ export default function MusicGenerator() {
         height: 120,
         barGap: 2,
         media: audioElement,
+        interact: true,
+        dragToSeek: true,
       });
+      
       wavesurferRef.current.load(generatedAudio);
     }
   }, [generatedAudio, audioElement]);
@@ -39,19 +47,30 @@ export default function MusicGenerator() {
   const handleGenerate = async () => {
     setIsGenerating(true);
     setGeneratedAudio(null);
+    setError(null);
     
-    setTimeout(() => {
-      const dummyAudioUrl = new URL('../assets/test_music.mp3', import.meta.url).href;
-      setGeneratedAudio(dummyAudioUrl);
+    try {
+      const response = await generateMusic({
+        prompt: prompt || undefined,
+        duration,
+        temperature,
+      });
+      
+      setGeneratedTitle(response.title);
+      setGeneratedAudio(`${API_BASE_URL}/audio/test_music.mp3`);
+    } catch (err) {
+      console.error('Failed to generate music:', err);
+      setError('Failed to generate music');
+    } finally {
       setIsGenerating(false);
-    }, 3000);
+    }
   };
 
   const togglePlayPause = () => {
     if (generatedAudio) {
       const track = {
         id: 'generated-' + Date.now(),
-        title: prompt || 'Generated Music',
+        title: generatedTitle || prompt || 'Generated Music',
         url: generatedAudio,
         duration: duration,
       };
