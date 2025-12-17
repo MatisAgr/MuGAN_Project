@@ -1,63 +1,127 @@
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import APP_NAME from '../constants/AppName';
-import { FaReact } from 'react-icons/fa';
-import { SiTypescript, SiVite, SiTailwindcss } from 'react-icons/si';
+import { LineChart, Music, Database } from 'lucide-react';
+import FloatingLines from '../components/FloatingLines';
 
 export default function Home() {
-  const dependencies = [
-    { name: "React Router", version: "7.4.0", description: "Routage pour l'application" },
-    { name: "TailwindCSS", version: "4.0.15", description: "Framework CSS utilitaire" },
-    { name: "Framer Motion", version: "12.5.0", description: "Animations et transitions" },
-    { name: "Axios", version: "1.8.4", description: "Client HTTP pour les requêtes API" },
-    { name: "React Icons", version: "5.5.0", description: "Bibliothèque d'icônes" },
-    { name: "Dotenv", version: "16.4.7", description: "Gestion des variables d'environnement" },
-    { name: "Js Cookie", version: "3.0.6", description: "Gestion des cookies" },
+  const features = [
+    {
+      title: "Training Dashboard",
+      description: "Monitor your AI model training in real-time with detailed charts and metrics",
+      icon: LineChart,
+      link: "/training",
+      color: "from-indigo-500 to-indigo-600"
+    },
+    {
+      title: "Music Generator",
+      description: "Generate piano music with AI and visualize the audio spectrum",
+      icon: Music,
+      link: "/generator",
+      color: "from-purple-500 to-purple-600"
+    },
+    {
+      title: "Music Database",
+      description: "Explore training samples and community-generated music",
+      icon: Database,
+      link: "/database",
+      color: "from-violet-500 to-violet-600"
+    }
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-400 via-indigo-300 to-purple-400 p-4">
-      <div className="max-w-4xl w-full px-8 py-16 bg-white bg-opacity-20 backdrop-blur-lg rounded-3xl shadow-2xl border border-white border-opacity-20">
-        <div className="text-center mb-12">
+    <div className="relative min-h-screen overflow-hidden bg-slate-950">
+      <div className="absolute inset-0 pointer-events-auto">
+        <FloatingLines
+          linesGradient={['#6366f1', '#8b5cf6', '#a855f7']}
+          enabledWaves={['middle', 'bottom']}
+          lineCount={[8, 6]}
+          lineDistance={[4, 5]}
+          animationSpeed={0.8}
+          interactive={true}
+          bendRadius={3.0}
+          bendStrength={-0.8}
+          mouseDamping={0.08}
+          mixBlendMode="screen"
+        />
+      </div>
+      
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 pt-24 pointer-events-none">
+        <div className="pointer-events-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-center mb-16"
+        >
+          <motion.h1 
+            className="text-7xl md:text-9xl font-black mb-6 tracking-tight"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+          >
+            <span className="bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 bg-clip-text text-transparent drop-shadow-2xl">
+              {APP_NAME}
+            </span>
+          </motion.h1>
+          
+          <motion.p 
+            className="text-2xl md:text-3xl text-white font-semibold mb-4 drop-shadow-lg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+          >
+            AI-Powered Music Generation
+          </motion.p>
 
-          <h1 className="text-2xl md:text-5xl font-extrabold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-500 mb-2">
-            {APP_NAME}
-          </h1>
-          
-          <div className="flex justify-center gap-5 mt-6">
-            <FaReact className="text-4xl text-blue-500" />
-            <SiTypescript className="text-4xl text-blue-700" />
-            <SiVite className="text-4xl text-yellow-500" />
-            <SiTailwindcss className="text-4xl text-teal-500" />
-          </div>
-          
-          <h2 className="text-xl text-indigo-800 mt-4">
-            Application React (TSX) avec Vite
-          </h2>
+        </motion.div>
 
-        </div>
-        
-        <div className="mt-8 text-center text-indigo-900">
-          <h2 className="text-2xl font-semibold mb-6">STARTER PACK</h2>
-          
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white bg-opacity-50 rounded-lg overflow-hidden">
-              <thead className="bg-indigo-500 text-white uppercase">
-                <tr>
-                  <th className="py-3 px-4 text-center">Bibliothèque</th>
-                  <th className="py-3 px-4 text-center">Version</th>
-                  <th className="py-3 px-4 text-center">Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dependencies.map((dep, index) => (
-                  <tr key={index} className={index % 2 === 0 ? "bg-indigo-50 bg-opacity-50" : "bg-white bg-opacity-50"}>
-                    <td className="py-2 px-4 border-t border-indigo-100">{dep.name}</td>
-                    <td className="py-2 px-4 border-t border-indigo-100">{dep.version}</td>
-                    <td className="py-2 px-4 border-t border-indigo-100">{dep.description}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl w-full px-4"
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.8 }}
+        >
+          {features.map((feature, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.9 + index * 0.1 }}
+              whileHover={{ scale: 1.05, y: -10 }}
+              className="group"
+            >
+              <Link
+                to={feature.link}
+                className="block h-full bg-slate-800/50 backdrop-blur-xl border border-purple-500/30 rounded-2xl p-8 hover:bg-slate-800/70 hover:border-purple-500/50 transition-all shadow-2xl cursor-pointer"
+              >
+                <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-lg`}>
+                  <feature.icon className="text-3xl text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-3 tracking-tight">{feature.title}</h3>
+                <p className="text-slate-100 font-medium leading-relaxed">{feature.description}</p>
+                
+                <div className="mt-6 flex items-center text-purple-300 group-hover:text-purple-200 transition-colors font-semibold">
+                  <span className="mr-2">Explore</span>
+                  <svg className="w-5 h-5 group-hover:translate-x-2 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </div>
+              </Link>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        <motion.div
+          className="mt-20 text-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8, delay: 1.4 }}
+        >
+          <p className="text-slate-200 text-sm font-medium">
+            Made by Matis, Julien, Carl & Sedanur
+          </p>
+        </motion.div>
         </div>
       </div>
     </div>
