@@ -36,15 +36,18 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
-      audioRef.current.addEventListener('ended', () => {
-        setIsPlaying(false);
-      });
     }
+    
+    const audio = audioRef.current;
+    const handleEnded = () => {
+      setIsPlaying(false);
+    };
+    
+    audio.addEventListener('ended', handleEnded);
+    
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      audio.removeEventListener('ended', handleEnded);
+      audio.pause();
     };
   }, []);
 

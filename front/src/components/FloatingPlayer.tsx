@@ -28,19 +28,35 @@ export default function FloatingPlayer() {
   }, [isVisible]);
 
   useEffect(() => {
-    if (waveformRef.current && isVisible && audioElement && !wavesurferRef.current) {
-      wavesurferRef.current = WaveSurfer.create({
-        container: waveformRef.current,
-        waveColor: '#818cf8',
-        progressColor: '#6366f1',
-        cursorColor: '#4f46e5',
-        barWidth: 2,
-        barRadius: 3,
-        cursorWidth: 1,
-        height: 60,
-        barGap: 1,
-        media: audioElement,
-      });
+    if (isVisible && audioElement && currentTrack && waveformRef.current && location.pathname !== '/generator') {
+      if (wavesurferRef.current) {
+        wavesurferRef.current.destroy();
+        wavesurferRef.current = null;
+      }
+      
+      const createWaveform = () => {
+        if (!waveformRef.current) return;
+        
+        wavesurferRef.current = WaveSurfer.create({
+          container: waveformRef.current,
+          waveColor: '#818cf8',
+          progressColor: '#6366f1',
+          cursorColor: '#4f46e5',
+          barWidth: 2,
+          barRadius: 3,
+          cursorWidth: 1,
+          height: 60,
+          barGap: 1,
+          media: audioElement,
+        });
+
+        const audioUrl = currentTrack.url || audioElement.src;
+        if (audioUrl) {
+          wavesurferRef.current.load(audioUrl);
+        }
+      };
+
+      setTimeout(createWaveform, 100);
     }
 
     return () => {
@@ -49,7 +65,7 @@ export default function FloatingPlayer() {
         wavesurferRef.current = null;
       }
     };
-  }, [isVisible, audioElement]);
+  }, [isVisible, audioElement, currentTrack, location.pathname]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.no-drag')) return;
@@ -62,11 +78,14 @@ export default function FloatingPlayer() {
   };
 
   const handleMouseMove = (e: MouseEvent) => {
-    if (isDragging) {
+    if (isDragging && containerRef.current) {
       e.preventDefault();
       requestAnimationFrame(() => {
-        const newX = Math.max(0, Math.min(e.clientX - dragStart.x, window.innerWidth - 400));
-        const newY = Math.max(0, Math.min(e.clientY - dragStart.y, window.innerHeight - 200));
+        const rect = containerRef.current!.getBoundingClientRect();
+        const playerWidth = rect.width || 400;
+        const playerHeight = rect.height || 200;
+        const newX = Math.max(0, Math.min(e.clientX - dragStart.x, window.innerWidth - playerWidth));
+        const newY = Math.max(0, Math.min(e.clientY - dragStart.y, window.innerHeight - playerHeight));
         setPosition({ x: newX, y: newY });
       });
     }
@@ -142,8 +161,8 @@ export default function FloatingPlayer() {
             </div>
           </div>
 
-          <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-lg p-3 mb-3">
-            <div ref={waveformRef} className="w-full" />
+          <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-lg p-3 mb-3 h-20">
+            <div ref={waveformRef} className="w-full h-full" />
           </div>
 
           <div className="flex items-center justify-center no-drag">
