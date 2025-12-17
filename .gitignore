@@ -1,2 +1,5 @@
 .github
 node_modules
+instruction.md
+.env
+/data
