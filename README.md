@@ -4,7 +4,7 @@
 
 ### Crédit
 
-ANGER Matis
-BINET Julien
-BOURGES Carl
-OZDEMIR Sedanur
+- ANGER Matis
+- BINET Julien
+- BOURGES Carl
+- OZDEMIR Sedanur
