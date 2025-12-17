@@ -1,16 +1,16 @@
-/////////////////////////////////////////////
-//Dépendances
 import { Routes, Route } from "react-router-dom";
 
-/////////////////////////////////////////////
-//Components
 import ScrollToTop from "./utils/ScrollToTop";
-// import ProtectedRoute from "./utils/ProtectedRoute";
-
-// import Navbar from "./components/Navbar/Navbar";
+import NavbarMenu from "./components/NavbarMenu";
+import FloatingPlayer from "./components/FloatingPlayer";
 
 import Home from "./pages/Home";
+import TrainingDashboard from "./pages/TrainingDashboard";
+import MusicGenerator from "./pages/MusicGenerator";
+import MusicDatabase from "./pages/MusicDatabase";
+import Preprocessing from "./pages/Preprocessing";
 
+import { AudioPlayerProvider } from "./contexts/AudioPlayerContext";
 
 // import Page404 from "./pages/Page404";
 // import Notification from "./components/Notification";
@@ -20,31 +20,35 @@ import Home from "./pages/Home";
 
 export default function App() {
   return (
-    <div className="min-h-screen">
-      {/* <Navbar /> */}
-      {/* <Notification /> */}
+    <AudioPlayerProvider>
+      <div className="min-h-screen">
+        <NavbarMenu />
+        {/* <Notification /> */}
 
-      <div className="flex flex-col flex-grow">
-        <ScrollToTop />
-        <main className="flex-grow">
-          <Routes>
+        <div className="flex flex-col flex-grow">
+          <ScrollToTop />
+          <main className="flex-grow">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/training" element={<TrainingDashboard />} />
+              <Route path="/preprocessing" element={<Preprocessing />} />
+              <Route path="/generator" element={<MusicGenerator />} />
+              <Route path="/database" element={<MusicDatabase />} />
 
+              {/* <Route path="/profile" element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              } /> */}
 
-            <Route path="/" element={<Home />} />
+              {/* <Route path="*" element={<Page404 />} /> */}
 
+            </Routes>
+          </main>
+        </div>
 
-            {/* <Route path="/profile" element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            } /> */}
-
-
-            {/* <Route path="*" element={<Page404 />} /> */}
-
-          </Routes>
-        </main>
+        <FloatingPlayer />
       </div>
-    </div>
+    </AudioPlayerProvider>
   );
 }
