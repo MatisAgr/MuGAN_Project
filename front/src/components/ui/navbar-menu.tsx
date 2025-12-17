@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { motion } from "motion/react";
+import { Link } from "react-router-dom";
 
 
 
@@ -113,7 +114,7 @@ export const ProductItem = ({
           {description}
         </p>
       </div>
-    </a>
+    </Link>
   );
 };
 
@@ -124,8 +125,7 @@ export const HoveredLink = ({ children, href, ...rest }: any) => {
       {...rest}
       className="text-white hover:text-purple-300 transition-colors font-medium"
     >
-    >
       {children}
-    </a>
+    </Link>
   );
 };
