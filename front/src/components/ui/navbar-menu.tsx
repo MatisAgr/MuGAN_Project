@@ -17,21 +17,24 @@ export const MenuItem = ({
   setActive,
   active,
   item,
+  icon,
   children,
 }: {
   setActive: (item: string) => void;
   active: string | null;
   item: string;
+  icon?: React.ReactNode;
   children?: React.ReactNode;
 }) => {
   return (
     <div onMouseEnter={() => setActive(item)} className="relative">
-      <motion.p
+      <motion.div
         transition={{ duration: 0.3 }}
-        className="cursor-pointer text-sm font-medium text-white hover:text-purple-300 transition-colors"
+        className="cursor-pointer text-sm font-medium text-white hover:text-purple-300 transition-colors flex items-center gap-2"
       >
+        {icon}
         {item}
-      </motion.p>
+      </motion.div>
       {active !== null && (
         <motion.div
           initial={{ opacity: 0, scale: 0.85, y: 10 }}
@@ -84,11 +87,13 @@ export const ProductItem = ({
   description,
   href,
   src,
+  icon,
 }: {
   title: string;
   description: string;
   href: string;
   src: string;
+  icon?: React.ReactNode;
 }) => {
   return (
     <a href={href} onClick={(e) => { e.preventDefault(); window.history.pushState({}, '', href); window.dispatchEvent(new PopStateEvent('popstate')); }} className="flex space-x-3 group cursor-pointer hover:bg-slate-800/50 p-3 rounded-lg transition-all">
@@ -100,7 +105,8 @@ export const ProductItem = ({
         className="shrink-0 rounded-lg shadow-xl object-cover border border-purple-500/20 group-hover:border-purple-500/40 transition-all"
       />
       <div>
-        <h4 className="text-base font-bold mb-2 text-white group-hover:text-purple-300 transition-colors">
+        <h4 className="text-base font-bold mb-2 text-white group-hover:text-purple-300 transition-colors flex items-center gap-2">
+          {icon}
           {title}
         </h4>
         <p className="text-neutral-400 text-sm max-w-[12rem] leading-relaxed">
