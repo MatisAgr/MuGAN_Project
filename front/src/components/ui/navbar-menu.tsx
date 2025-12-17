@@ -96,7 +96,7 @@ export const ProductItem = ({
   icon?: React.ReactNode;
 }) => {
   return (
-    <a href={href} onClick={(e) => { e.preventDefault(); window.history.pushState({}, '', href); window.dispatchEvent(new PopStateEvent('popstate')); }} className="flex space-x-3 group cursor-pointer hover:bg-slate-800/50 p-3 rounded-lg transition-all">
+    <Link to={href} className="flex space-x-3 group cursor-pointer hover:bg-slate-800/50 p-3 rounded-lg transition-all">
       <img
         src={src}
         width={140}
