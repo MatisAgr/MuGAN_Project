@@ -7,25 +7,32 @@ import FloatingLines from '../components/FloatingLines';
 export default function Home() {
   const features = [
     {
-      title: "Training Dashboard",
-      description: "Monitor your AI model training in real-time with detailed charts and metrics",
-      icon: LineChart,
-      link: "/training",
-      color: "from-indigo-500 to-indigo-600"
-    },
-    {
-      title: "Music Generator",
-      description: "Generate piano music with AI and visualize the audio spectrum",
-      icon: Music,
-      link: "/generator",
-      color: "from-purple-500 to-purple-600"
-    },
-    {
-      title: "Music Database",
-      description: "Explore training samples and community-generated music",
+      title: "Training Data",
+      description: "Browse the dataset used for training the AI model",
       icon: Database,
-      link: "/database",
-      color: "from-violet-500 to-violet-600"
+      link: "/database?filter=Train",
+      color: "from-green-500 to-green-600"
+    },
+    {
+      title: "Test Set",
+      description: "Explore the test samples used to evaluate model performance",
+      icon: Database,
+      link: "/database?filter=Test",
+      color: "from-blue-500 to-blue-600"
+    },
+    {
+      title: "Validation Set",
+      description: "Review the validation samples used for fine-tuning",
+      icon: Database,
+      link: "/database?filter=Validation",
+      color: "from-orange-500 to-orange-600"
+    },
+    {
+      title: "Generated Music",
+      description: "Explore music created by the community and AI",
+      icon: Music,
+      link: "/database?filter=Generated",
+      color: "from-pink-500 to-pink-600"
     }
   ];
 
@@ -77,7 +84,7 @@ export default function Home() {
         </motion.div>
 
         <motion.div 
-          className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl w-full px-4"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl w-full px-4"
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.8 }}
@@ -87,9 +94,9 @@ export default function Home() {
               key={index}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.9 + index * 0.1 }}
+              transition={{ duration: 0.5, delay: 0.8 + index * 0.1 }}
               whileHover={{ scale: 1.05, y: -10 }}
-              className="group"
+              className="group h-full"
             >
               <Link
                 to={feature.link}
