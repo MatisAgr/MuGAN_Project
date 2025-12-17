@@ -1,40 +1,12 @@
-import { Link } from 'react-router-dom';
+import { useRef } from 'react';
 import { motion } from 'framer-motion';
 import APP_NAME from '../constants/AppName';
-import { LineChart, Music, Database } from 'lucide-react';
 import FloatingLines from '../components/FloatingLines';
+import VariableProximity from '../components/VariableProximity';
 
 export default function Home() {
-  const features = [
-    {
-      title: "Training Data",
-      description: "Browse the dataset used for training the AI model",
-      icon: Database,
-      link: "/database?filter=Train",
-      color: "from-green-500 to-green-600"
-    },
-    {
-      title: "Test Set",
-      description: "Explore the test samples used to evaluate model performance",
-      icon: Database,
-      link: "/database?filter=Test",
-      color: "from-blue-500 to-blue-600"
-    },
-    {
-      title: "Validation Set",
-      description: "Review the validation samples used for fine-tuning",
-      icon: Database,
-      link: "/database?filter=Validation",
-      color: "from-orange-500 to-orange-600"
-    },
-    {
-      title: "Generated Music",
-      description: "Explore music created by the community and AI",
-      icon: Music,
-      link: "/database?filter=Generated",
-      color: "from-pink-500 to-pink-600"
-    }
-  ];
+
+const containerRef = useRef(null);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950">
@@ -67,9 +39,24 @@ export default function Home() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
           >
-            <span className="bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 bg-clip-text text-transparent drop-shadow-2xl plus-jakarta-sans-800">
-              {APP_NAME}
-            </span>
+            <div
+            ref={containerRef}
+            style={{position: 'relative'}}
+            >
+              <VariableProximity
+                label={APP_NAME}
+                className={'variable-proximity-demo text-7xl md:text-9xl mb-6 tracking-tight text-white'}
+                style={{
+                  textShadow: '0 0 30px rgba(139, 92, 246, 0.8), 0 0 60px rgba(168, 85, 247, 0.6), 0 10px 30px rgba(0, 0, 0, 0.8), 0 20px 50px rgba(99, 102, 241, 0.4)',
+                  filter: 'drop-shadow(0 0 20px rgba(139, 92, 246, 0.6))',
+                }}
+                fromFontVariationSettings="'wght' 400, 'opsz' 9"
+                toFontVariationSettings="'wght' 1000, 'opsz' 40"
+                containerRef={containerRef}
+                radius={300}
+                falloff='linear'
+              />
+            </div>
           </motion.h1>
           
           <motion.p 
@@ -81,42 +68,6 @@ export default function Home() {
             AI-Powered Music Generation
           </motion.p>
 
-        </motion.div>
-
-        <motion.div 
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl w-full px-4"
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.8 }}
-        >
-          {features.map((feature, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.8 + index * 0.1 }}
-              whileHover={{ scale: 1.05, y: -10 }}
-              className="group h-full"
-            >
-              <Link
-                to={feature.link}
-                className="block h-full bg-slate-800/50 backdrop-blur-xl border border-purple-500/30 rounded-2xl p-8 hover:bg-slate-800/70 hover:border-purple-500/50 transition-all shadow-2xl cursor-pointer"
-              >
-                <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-lg`}>
-                  <feature.icon className="text-3xl text-white" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-3 tracking-tight">{feature.title}</h3>
-                <p className="text-slate-100 font-medium leading-relaxed">{feature.description}</p>
-                
-                <div className="mt-6 flex items-center text-purple-300 group-hover:text-purple-200 transition-colors font-semibold">
-                  <span className="mr-2">Explore</span>
-                  <svg className="w-5 h-5 group-hover:translate-x-2 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
         </motion.div>
 
         <motion.div
