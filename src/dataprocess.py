@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-DATA_DIR = "C:\\kh\\midi"
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "midi")
 
 if not os.path.exists(DATA_DIR) or not os.listdir(DATA_DIR):
     os.makedirs(DATA_DIR, exist_ok=True)
