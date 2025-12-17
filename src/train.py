@@ -1,8 +1,3 @@
-"""
-Script d'entraînement d'un modèle de génération musicale avec TensorFlow/Keras.
-Entraîne un modèle sur les séquences de notes MIDI prétraitées.
-"""
-
 import os
 import json
 import argparse
@@ -13,50 +8,43 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import matplotlib.pyplot as plt
 
-# Configuration TensorFlow
-tf.config.set_visible_devices([], 'GPU')  # Force CPU si GPU problématique
-tf.data.experimental.enable_debug_mode()  # Mode debug pour meilleur diagnostique
-
-# Déterminer le dossier du projet (parent du dossier src)
+tf.config.set_visible_devices([], 'GPU')
+tf.data.experimental.enable_debug_mode()
 PROJECT_DIR = Path(__file__).parent.parent
 DATA_PROCESSED_DIR = PROJECT_DIR / "data" / "processed"
 MODELS_DIR = PROJECT_DIR / "models" / "music_vae"
 
 
-def build_model(sequence_length: int, vocab_size: int = 128) -> keras.Model:
+def build_model(sequence_length: int, vocab_size: int = 128, learning_rate: float = 0.001) -> keras.Model:
     """
     Construit un modèle RNN simple pour la génération musicale.
     
     Args:
         sequence_length: Longueur des séquences d'entrée
         vocab_size: Nombre de notes uniques (0-127 pour MIDI)
+        learning_rate: Learning rate pour l'optimiseur Adam
         
     Returns:
         Modèle Keras compilé
     """
     model = keras.Sequential([
-        # Couche d'embedding pour représenter les notes
         layers.Embedding(vocab_size + 2, 64),
         
-        # LSTM pour capturer les dépendances
         layers.LSTM(128, return_sequences=True),
         layers.Dropout(0.2),
         
-        # LSTM supplémentaire
         layers.LSTM(64, return_sequences=False),
         layers.Dropout(0.2),
         
-        # Couches fully connected
         layers.Dense(128, activation='relu'),
         layers.Dropout(0.2),
         layers.Dense(64, activation='relu'),
         
-        # Output layer - prédire la prochaine note
         layers.Dense(vocab_size + 2, activation='softmax')
     ])
     
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=0.001),
+        optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy']
     )
@@ -81,22 +69,19 @@ def prepare_data(sequences: np.ndarray, sequence_length: int):
     y = []
     
     for seq in sequences:
-        # Prendre la séquence entière comme input, prédire la dernière note
         X.append(seq)
         y.append(seq[-1])
     
     X = np.array(X, dtype=np.float32)
     y = np.array(y, dtype=np.int32)
     
-    # Remplacer les valeurs -1 (silence) par un index spécial (128)
     X = np.where(X == -1, 128, X).astype(np.int32)
-    # Les targets peuvent aussi contenir -1, remplacer par 128
     y = np.where(y == -1, 128, y).astype(np.int32)
     
     return X, y
 
 
-def save_metrics_json(history, model_dir: str, num_epochs: int, batch_size: int):
+def save_metrics_json(history, model_dir: str, num_epochs: int, batch_size: int, learning_rate: float = 0.001):
     """
     Sauvegarde les métriques d'entraînement en format JSON.
     Écrase le fichier précédent à chaque exécution.
@@ -106,12 +91,14 @@ def save_metrics_json(history, model_dir: str, num_epochs: int, batch_size: int)
         model_dir: Dossier où sauvegarder le fichier JSON
         num_epochs: Nombre d'epochs d'entraînement
         batch_size: Taille des batches utilisée
+        learning_rate: Learning rate utilisé pour l'entraînement
     """
     metrics_path = os.path.join(model_dir, "training_metrics.json")
     
     metrics = {
         "num_epochs": num_epochs,
         "batch_size": batch_size,
+        "learning_rate": learning_rate,
         "loss": history.history.get('loss', []),
         "accuracy": history.history.get('accuracy', []),
         "val_loss": history.history.get('val_loss', []),
@@ -133,7 +120,7 @@ def save_metrics_json(history, model_dir: str, num_epochs: int, batch_size: int)
     with open(metrics_path, 'w') as f:
         json.dump(metrics, f, indent=2)
     
-    print(f"💾 Métriques sauvegardées: {metrics_path}")
+    print(f"metrics saved: {metrics_path}")
     
     return metrics_path
 
@@ -143,7 +130,8 @@ def train_model(train_dir: str,
                 model_dir: str,
                 num_epochs: int = 20,
                 batch_size: int = 32,
-                sequence_length: int = 32):
+                sequence_length: int = 32,
+                learning_rate: float = 0.001):
     """
     Entraîne le modèle de génération musicale.
     
@@ -153,44 +141,41 @@ def train_model(train_dir: str,
         num_epochs: Nombre d'epochs d'entraînement
         batch_size: Taille des batches
         sequence_length: Longueur des séquences
+        learning_rate: Learning rate pour l'optimiseur Adam
     """
     os.makedirs(model_dir, exist_ok=True)
     
     print("=" * 60)
-    print("🎓 ENTRAÎNEMENT DU MODÈLE DE GÉNÉRATION MUSICALE")
+    print("training model")
     print("=" * 60)
     
-    # Charger les données
-    print("\n📂 Chargement des données...")
+    print("\nloading data...")
     train_path = os.path.join(train_dir, "train_sequences.npy")
     val_path = os.path.join(train_dir, "validation_sequences.npy")
     
     if not os.path.exists(train_path):
-        print(f"❌ Fichier non trouvé: {train_path}")
-        print("   Avez-vous exécuté preprocess.py d'abord?")
+        print(f"error: file not found: {train_path}")
+        print("   have you executed preprocess.py first?")
         return
     
     train_sequences = np.load(train_path)
     val_sequences = np.load(val_path)
     
-    print(f"✅ Données d'entraînement chargées: {train_sequences.shape}")
-    print(f"✅ Données de validation chargées: {val_sequences.shape}")
+    print(f"training data loaded: {train_sequences.shape}")
+    print(f"validation data loaded: {val_sequences.shape}")
     
-    # Préparer les données
-    print("\n🔄 Préparation des données...")
+    print("\ndata preparation...")
     X_train, y_train = prepare_data(train_sequences, sequence_length)
     X_val, y_val = prepare_data(val_sequences, sequence_length)
     
-    print(f"✅ X_train shape: {X_train.shape}")
-    print(f"✅ y_train shape: {y_train.shape}")
+    print(f"X_train shape: {X_train.shape}")
+    print(f"y_train shape: {y_train.shape}")
     
-    # Construire le modèle
-    print("\n🏗️ Construction du modèle...")
-    model = build_model(sequence_length)
-    print("✅ Modèle construit!")
+    print("\nmodel building...")
+    model = build_model(sequence_length, learning_rate=learning_rate)
+    print("model built")
     
-    # Afficher le résumé du modèle
-    print("\n📊 Résumé du modèle:")
+    print("\nmodel summary:")
     model.summary()
     
     # Callbacks
@@ -208,7 +193,10 @@ def train_model(train_dir: str,
     )
     
     # Entraîner le modèle
-    print("\n🚀 Démarrage de l'entraînement...")
+    print("\ntraining start...")
+    print(f"learning rate: {learning_rate}")
+    print(f"epochs: {num_epochs}")
+    print(f"batch size: {batch_size}")
     history = model.fit(
         X_train, y_train,
         epochs=num_epochs,
@@ -234,7 +222,7 @@ def train_model(train_dir: str,
     plt.subplot(1, 2, 1)
     plt.plot(history.history['loss'], label='Training Loss')
     plt.plot(history.history['val_loss'], label='Validation Loss')
-    plt.title('Perte lors de l\'entraînement')
+    plt.title('Loss during training')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
@@ -243,7 +231,7 @@ def train_model(train_dir: str,
     plt.subplot(1, 2, 2)
     plt.plot(history.history['accuracy'], label='Training Accuracy')
     plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-    plt.title('Précision lors de l\'entraînement')
+    plt.title('Accuracy during training')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.legend()
@@ -251,42 +239,44 @@ def train_model(train_dir: str,
     
     graph_path = os.path.join(model_dir, 'training_history.png')
     plt.savefig(graph_path, dpi=100, bbox_inches='tight')
-    print(f"✅ Graphiques sauvegardés: {graph_path}")
+    print(f"graphs saved: {graph_path}")
     
-    # Sauvegarder les métriques en JSON (écrase le fichier précédent)
-    print("\n📊 Sauvegarde des métriques d'entraînement...")
-    save_metrics_json(history, model_dir, num_epochs, batch_size)
+    print("\nmetrics saving...")
+    save_metrics_json(history, model_dir, num_epochs, batch_size, learning_rate)
     
     print("\n" + "=" * 60)
-    print("✅ ENTRAÎNEMENT TERMINÉ!")
-    print(f"📁 Modèles sauvegardés dans: {model_dir}")
+    print("training complete!")
+    print(f"models saved in: {model_dir}")
     print("=" * 60)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Entraînement du modèle de génération musicale")
     parser.add_argument("--train_dir", type=str, default=str(DATA_PROCESSED_DIR),
-                        help="Dossier contenant les données prétraitées")
+                        help="folder containing preprocessed data")
     parser.add_argument("--model_dir", type=str, default=str(MODELS_DIR),
-                        help="Dossier pour sauvegarder le modèle")
+                        help="folder to save the model")
     parser.add_argument("--num_epochs", type=int, default=20,
-                        help="Nombre d'epochs")
+                        help="number of epochs")
     parser.add_argument("--batch_size", type=int, default=32,
-                        help="Taille des batches")
+                        help="batch size")
     parser.add_argument("--sequence_length", type=int, default=32,
-                        help="Longueur des séquences")
+                        help="sequence length")
+    parser.add_argument("--learning_rate", type=float, default=0.001,
+                        help="learning rate for Adam optimizer")
     
     args = parser.parse_args()
     
-    print(f"📁 Dossier du projet: {PROJECT_DIR}")
-    print(f"📁 Données d'entraînement: {args.train_dir}")
-    print(f"📁 Modèles: {args.model_dir}\n")
+    print(f"project folder: {PROJECT_DIR}")
+    print(f"training data: {args.train_dir}")
+    print(f"models: {args.model_dir}\n")
     
     train_model(
         train_dir=args.train_dir,
         model_dir=args.model_dir,
         num_epochs=args.num_epochs,
         batch_size=args.batch_size,
-        sequence_length=args.sequence_length
+        sequence_length=args.sequence_length,
+        learning_rate=args.learning_rate
     )
 
