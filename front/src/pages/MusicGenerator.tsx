@@ -113,7 +113,7 @@ export default function MusicGenerator() {
 
               <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Duration: {duration}s
+              Nombre de notes: {duration}
             </label>
             <input
               type="range"
@@ -125,8 +125,8 @@ export default function MusicGenerator() {
               className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500 disabled:opacity-50"
             />
             <div className="flex justify-between text-xs text-slate-400 mt-1">
-              <span>10s</span>
-              <span>120s</span>
+              <span>10</span>
+              <span>120</span>
             </div>
               </div>
 
@@ -175,8 +175,8 @@ export default function MusicGenerator() {
             <h2 className="text-xl font-semibold text-white mb-4">Info</h2>
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-4">
-            <p className="text-xs text-slate-400 mb-1">Duration</p>
-            <p className="text-lg font-bold text-white">{duration}s</p>
+            <p className="text-xs text-slate-400 mb-1">Nombre de notes</p>
+            <p className="text-lg font-bold text-white">{duration}</p>
               </div>
               <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-4">
             <p className="text-xs text-slate-400 mb-1">Temperature</p>
@@ -215,8 +215,8 @@ export default function MusicGenerator() {
 
                 <div className="mt-8 grid grid-cols-3 gap-3">
                   <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center animate-pulse">
-                    <div className="text-xs text-purple-300">Duration</div>
-                    <div className="text-sm font-bold text-white mt-1">{duration}s</div>
+                    <div className="text-xs text-purple-300">Notes</div>
+                    <div className="text-sm font-bold text-white mt-1">{duration}</div>
                   </div>
                   <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 text-center animate-pulse" style={{ animationDelay: '0.2s' }}>
                     <div className="text-xs text-indigo-300">Temp</div>
