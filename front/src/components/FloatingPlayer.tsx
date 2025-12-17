@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import WaveSurfer from 'wavesurfer.js';
 import { Play, Pause, X, Maximize2, Minimize2 } from 'lucide-react';
 import { useAudioPlayer } from '@/contexts/AudioPlayerContext';
 
 export default function FloatingPlayer() {
+  const location = useLocation();
   const { currentTrack, isPlaying, isVisible, stop, setIsPlaying, audioElement } = useAudioPlayer();
   const [isExpanded, setIsExpanded] = useState(false);
   const [position, setPosition] = useState({ x: window.innerWidth - 420, y: window.innerHeight - 220 });
@@ -89,7 +91,7 @@ export default function FloatingPlayer() {
     setIsPlaying(!isPlaying);
   };
 
-  if (!isVisible || !currentTrack) return null;
+  if (!isVisible || !currentTrack || location.pathname === '/generator') return null;
 
   return (
     <div
