@@ -98,93 +98,93 @@ export default function MusicGenerator() {
             
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Prompt (optional)
-                </label>
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Describe the music style..."
-                  disabled={isGenerating}
-                  className="w-full px-4 py-3 bg-slate-900/50 border border-purple-500/30 text-white placeholder-slate-500 rounded-lg focus:outline-none focus:border-purple-500 resize-none disabled:opacity-50"
-                  rows={4}
-                />
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Prompt (optional)
+            </label>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Describe the music style..."
+              disabled={isGenerating}
+              className="w-full px-4 py-3 bg-slate-900/50 border border-purple-500/30 text-white placeholder-slate-500 rounded-lg focus:outline-none focus:border-purple-500 resize-none disabled:opacity-50"
+              rows={4}
+            />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Duration: {duration}s
-                </label>
-                <input
-                  type="range"
-                  min="10"
-                  max="120"
-                  value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
-                  disabled={isGenerating}
-                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500 disabled:opacity-50"
-                />
-                <div className="flex justify-between text-xs text-slate-400 mt-1">
-                  <span>10s</span>
-                  <span>120s</span>
-                </div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Duration: {duration}s
+            </label>
+            <input
+              type="range"
+              min="10"
+              max="120"
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
+              disabled={isGenerating}
+              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500 disabled:opacity-50"
+            />
+            <div className="flex justify-between text-xs text-slate-400 mt-1">
+              <span>10s</span>
+              <span>120s</span>
+            </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Temperature: {temperature.toFixed(1)}
-                </label>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="2.0"
-                  step="0.1"
-                  value={temperature}
-                  onChange={(e) => setTemperature(Number(e.target.value))}
-                  disabled={isGenerating}
-                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500 disabled:opacity-50"
-                />
-                <div className="flex justify-between text-xs text-slate-400 mt-1">
-                  <span>Conservative</span>
-                  <span>Creative</span>
-                </div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Temperature: {temperature.toFixed(1)}
+            </label>
+            <input
+              type="range"
+              min="0.5"
+              max="2.0"
+              step="0.1"
+              value={temperature}
+              onChange={(e) => setTemperature(Number(e.target.value))}
+              disabled={isGenerating}
+              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500 disabled:opacity-50"
+            />
+            <div className="flex justify-between text-xs text-slate-400 mt-1">
+              <span>Conservative</span>
+              <span>Creative</span>
+            </div>
               </div>
 
               <button
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                className={`w-full py-4 rounded-lg font-semibold text-lg transition-all ${
-                  isGenerating
-                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-500 hover:to-indigo-500 cursor-pointer'
-                }`}
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className={`w-full py-4 rounded-lg font-semibold text-lg transition-all ${
+              isGenerating
+                ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-500 hover:to-indigo-500 cursor-pointer'
+            }`}
               >
-                {isGenerating ? (
-                  <span className="flex items-center justify-center gap-3">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    Generating...
-                  </span>
-                ) : (
-                  'Generate Music'
-                )}
+            {isGenerating ? (
+              <span className="flex items-center justify-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                Generating...
+              </span>
+            ) : (
+              'Generate Music'
+            )}
               </button>
             </div>
           </div>
 
           <div className="p-8 border-t border-purple-500/20">
             <h2 className="text-xl font-semibold text-white mb-4">Info</h2>
-            <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-4">
-                <p className="text-xs text-slate-400 mb-1">Duration</p>
-                <p className="text-lg font-bold text-white">{duration}s</p>
+            <p className="text-xs text-slate-400 mb-1">Duration</p>
+            <p className="text-lg font-bold text-white">{duration}s</p>
               </div>
               <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-4">
-                <p className="text-xs text-slate-400 mb-1">Temperature</p>
-                <p className="text-lg font-bold text-white">{temperature.toFixed(1)}</p>
+            <p className="text-xs text-slate-400 mb-1">Temperature</p>
+            <p className="text-lg font-bold text-white">{temperature.toFixed(1)}</p>
               </div>
               <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-4">
-                <p className="text-xs text-slate-400 mb-1">Format</p>
-                <p className="text-lg font-bold text-white">Piano MIDI</p>
+            <p className="text-xs text-slate-400 mb-1">Format</p>
+            <p className="text-lg font-bold text-white">Piano MIDI</p>
               </div>
             </div>
           </div>

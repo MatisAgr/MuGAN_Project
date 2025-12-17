@@ -25,13 +25,13 @@ export default function NavbarMenu() {
             <ProductItem
               title="Training Dashboard"
               href="/training"
-              src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=200&fit=crop"
+              src="https://www.01net.com/app/uploads/2023/06/ia-musique-musicgen.jpg"
               description="Monitor AI model training with real-time metrics and visualizations"
             />
             <ProductItem
               title="Data Preprocessing"
               href="/preprocessing"
-              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=200&fit=crop"
+              src="https://bowwe.com/upload/domain/37991/images/060_AI-Stats/EN/Artificial-Intelligence-Statistics.webp"
               description="Extract notes from MIDI files, create sequences and generate statistics"
             />
           </div>
