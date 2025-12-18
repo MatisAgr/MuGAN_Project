@@ -111,6 +111,14 @@ async def get_preprocessing_stats():
     else:
         return {"stats": None, "message": "No preprocessing stats available"}
 
+@router.post("/preprocess/stop")
+async def stop_preprocessing():
+    success = training_controller.stop_preprocessing()
+    if success:
+        return {"status": "stopped"}
+    else:
+        raise HTTPException(status_code=400, detail="No preprocessing in progress")
+
 @router.websocket("/preprocess/stream")
 async def preprocessing_websocket(websocket: WebSocket):
     await websocket.accept()

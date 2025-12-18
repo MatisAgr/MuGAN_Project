@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Square, Database } from 'lucide-react';
 import { 
-  startPreprocessing, 
+  startPreprocessing,
+  stopPreprocessing, 
   getPreprocessingStats,
   PreprocessingWebSocket,
   PreprocessingStats 
@@ -73,6 +74,7 @@ export default function Preprocessing() {
 
   const handleStartStop = async () => {
     if (isProcessing) {
+      await stopPreprocessing();
       setIsProcessing(false);
       setProgress(0);
     } else {
@@ -107,10 +109,9 @@ export default function Preprocessing() {
           </div>
           <button
             onClick={handleStartStop}
-            disabled={isProcessing && progress < 100}
             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
               isProcessing
-                ? 'bg-red-600 hover:bg-red-500 text-white disabled:opacity-50'
+                ? 'bg-red-600 hover:bg-red-500 text-white'
                 : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white'
             }`}
           >

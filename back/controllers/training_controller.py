@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import json
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Callable, Dict
@@ -19,6 +20,8 @@ _training_loop = None
 preprocess_task: Optional[asyncio.Task] = None
 preprocess_status = {"is_running": False, "progress": 0, "message": "Ready"}
 preprocess_listeners: List[Callable] = []
+should_stop_preprocessing = False
+_preprocess_loop = None
 
 def _get_train_model():
     global _train_model
@@ -67,6 +70,7 @@ async def _run_training_background(total_epochs: int, learning_rate: float = 0.0
     
     def stats_callback(stats_dict):
         try:
+            stats_dict['stopping'] = should_stop_training
             stats = TrainingStats(**stats_dict)
             
             epoch_data = TrainingEpoch(
@@ -216,6 +220,18 @@ def remove_training_listener(listener: Callable):
         training_listeners.remove(listener)
         print(f"[TRAINING CONTROLLER] Removed listener, remaining: {len(training_listeners)}")
 
+def _parse_stats_file(stats_file: Path) -> Dict:
+    stats = {}
+    with open(stats_file, 'r') as f:
+        for line in f:
+            if ':' in line:
+                key, value = line.strip().split(':', 1)
+                try:
+                    stats[key.strip()] = float(value.strip()) if '.' in value else int(value.strip())
+                except ValueError:
+                    stats[key.strip()] = value.strip()
+    return stats
+
 def is_training_active() -> bool:
     global training_task
     return training_task is not None and not training_task.done()
@@ -244,11 +260,13 @@ def get_current_training_session() -> Optional[TrainingSessionResponse]:
     return None
 
 async def _run_preprocessing_background(sequence_length: int = 32, train_split: float = 0.9, max_files: int = 10):
-    global preprocess_status, preprocess_task
+    global preprocess_status, preprocess_task, should_stop_preprocessing, _preprocess_loop
     
+    _preprocess_loop = asyncio.get_event_loop()
     preprocess_status["is_running"] = True
     preprocess_status["progress"] = 0
     preprocess_status["message"] = "Starting preprocessing..."
+    should_stop_preprocessing = False
     
     print(f"[PREPROCESS CONTROLLER] Starting data preprocessing with {max_files} files")
     
@@ -266,6 +284,8 @@ async def _run_preprocessing_background(sequence_length: int = 32, train_split: 
                 print(f"[PREPROCESS CONTROLLER] Error notifying listener: {e}")
     
     def progress_callback(progress, message):
+        if should_stop_preprocessing:
+            raise KeyboardInterrupt("Preprocessing stopped by user")
         preprocess_status["progress"] = progress
         preprocess_status["message"] = message
         print(f"[PREPROCESS CONTROLLER] {progress}% - {message}")
@@ -295,20 +315,14 @@ async def _run_preprocessing_background(sequence_length: int = 32, train_split: 
         
         print("[PREPROCESS CONTROLLER] Preprocessing completed successfully")
         
-        import json
         stats_file = Path(output_dir) / "stats.txt"
         if stats_file.exists():
-            stats = {}
-            with open(stats_file, 'r') as f:
-                for line in f:
-                    if ':' in line:
-                        key, value = line.strip().split(':', 1)
-                        try:
-                            stats[key.strip()] = float(value.strip()) if '.' in value else int(value.strip())
-                        except:
-                            stats[key.strip()] = value.strip()
-            return stats
+            return _parse_stats_file(stats_file)
         
+    except KeyboardInterrupt:
+        print("[PREPROCESS CONTROLLER] Preprocessing stopped by user")
+        preprocess_status["is_running"] = False
+        preprocess_status["message"] = "Preprocessing stopped"
     except Exception as e:
         print(f"[PREPROCESS CONTROLLER] Error during preprocessing: {e}")
         import traceback
@@ -338,17 +352,7 @@ def get_preprocessing_stats() -> Optional[Dict]:
     if not stats_file.exists():
         return None
     
-    stats = {}
-    with open(stats_file, 'r') as f:
-        for line in f:
-            if ':' in line:
-                key, value = line.strip().split(':', 1)
-                try:
-                    stats[key.strip()] = float(value.strip()) if '.' in value else int(value.strip())
-                except:
-                    stats[key.strip()] = value.strip()
-    
-    return stats
+    return _parse_stats_file(stats_file)
 
 def add_preprocess_listener(listener: Callable):
     global preprocess_listeners
@@ -360,3 +364,15 @@ def remove_preprocess_listener(listener: Callable):
     if listener in preprocess_listeners:
         preprocess_listeners.remove(listener)
         print(f"[PREPROCESS CONTROLLER] Removed listener, remaining: {len(preprocess_listeners)}")
+
+def stop_preprocessing() -> bool:
+    global preprocess_task, should_stop_preprocessing
+    
+    if not preprocess_task or preprocess_task.done():
+        print("[PREPROCESS CONTROLLER] No preprocessing in progress")
+        return False
+    
+    should_stop_preprocessing = True
+    preprocess_task.cancel()
+    print("[PREPROCESS CONTROLLER] Requested preprocessing stop")
+    return True

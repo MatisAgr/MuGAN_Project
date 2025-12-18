@@ -5,6 +5,7 @@ import { TrainingWebSocket, TrainingStats, getLatestTrainingSession, getTraining
 
 export default function TrainingDashboard() {
   const [isTraining, setIsTraining] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [totalEpochs, setTotalEpochs] = useState(100);
   const [learningRate, setLearningRate] = useState(0.001);
   const [batchSize, setBatchSize] = useState(32);
@@ -126,6 +127,9 @@ export default function TrainingDashboard() {
     
     wsRef.current.connect(
       (stats: TrainingStats) => {
+        if (stats.stopping) {
+          setIsStopping(true);
+        }
         setCurrentEpoch(stats.epoch);
         setLearningRate(stats.learning_rate);
         setBatchSize(stats.batch_size);
@@ -142,6 +146,7 @@ export default function TrainingDashboard() {
       },
       () => {
         setIsTraining(false);
+        setIsStopping(false);
       },
       (error: Error) => {
         console.error('WebSocket error:', error);
@@ -163,11 +168,7 @@ export default function TrainingDashboard() {
 
   const stopTraining = async () => {
     await apiStopTraining();
-    if (wsRef.current) {
-      wsRef.current.disconnect();
-      wsRef.current = null;
-    }
-    setIsTraining(false);
+    setIsStopping(true);
   };
 
   const lossChartOption = {
@@ -342,6 +343,12 @@ export default function TrainingDashboard() {
               <Clock size={16} />
               <span>{formatTime(elapsedTime)}</span>
             </div>
+            {isStopping && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-orange-900/30 border border-orange-500/50 rounded-lg">
+                <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
+                <span className="text-orange-300 text-sm font-semibold">Completing current epoch...</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex gap-4">

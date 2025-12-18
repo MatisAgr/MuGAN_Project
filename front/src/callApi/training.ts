@@ -12,6 +12,7 @@ export interface TrainingStats {
   batch_size: number;
   time_elapsed: number;
   eta: number;
+  stopping?: boolean;
 }
 
 export interface TrainingEpoch {
@@ -224,6 +225,26 @@ export async function startPreprocessing(sequenceLength: number = 32, trainSplit
     return true;
   } catch (error) {
     console.error('[API] Failed to start preprocessing:', error);
+    return false;
+  }
+}
+
+export async function stopPreprocessing(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/training/preprocess/stop`, {
+      method: 'POST',
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('[API] Failed to stop preprocessing:', error.detail);
+      return false;
+    }
+    
+    console.log('[API] Preprocessing stopped successfully');
+    return true;
+  } catch (error) {
+    console.error('[API] Failed to stop preprocessing:', error);
     return false;
   }
 }

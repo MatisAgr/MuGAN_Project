@@ -32,9 +32,6 @@ class TrainingCallback(keras.callbacks.Callback):
             self.model.stop_training = True
     
     def on_epoch_end(self, epoch, logs=None):
-        if self.should_stop and self.should_stop():
-            self.model.stop_training = True
-            return
         if self.stats_callback and logs:
             elapsed_time = time.time() - self.start_time
             epoch_time = time.time() - self.epoch_start_time
@@ -62,6 +59,9 @@ class TrainingCallback(keras.callbacks.Callback):
             }
             
             self.stats_callback(stats)
+        
+        if self.should_stop and self.should_stop():
+            self.model.stop_training = True
 
 
 def build_model(sequence_length: int, vocab_size: int = 128, learning_rate: float = 0.001) -> keras.Model:
