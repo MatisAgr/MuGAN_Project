@@ -127,14 +127,14 @@ export async function getCurrentTrainingSession(): Promise<TrainingSessionData |
   }
 }
 
-export async function startTraining(epochs: number): Promise<boolean> {
+export async function startTraining(epochs: number, learningRate: number = 0.001, batchSize: number = 32): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/training/start`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ epochs }),
+      body: JSON.stringify({ epochs, learning_rate: learningRate, batch_size: batchSize }),
     });
     
     if (!response.ok) {
