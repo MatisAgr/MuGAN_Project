@@ -5,4 +5,9 @@ websockets
 python-multipart
 motor
 python-dotenv
-music21
+
+tensorflow>=2.13.0
+keras>=2.13.0
+numpy>=1.24.0
+music21>=9.0.0
+tqdm>=4.60.0
