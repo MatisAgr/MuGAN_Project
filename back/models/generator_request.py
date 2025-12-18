@@ -1,8 +1,11 @@
 from pydantic import BaseModel
 from typing import Optional
 
+
+# TODO: à revoir
 class GeneratorRequest(BaseModel):
-    prompt: Optional[str] = None
+    title: Optional[str] = None
+    composer: Optional[str] = None
     duration: int = 30
     temperature: float = 1.0
 
