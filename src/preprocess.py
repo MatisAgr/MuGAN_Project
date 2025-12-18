@@ -6,16 +6,27 @@ from tqdm import tqdm
 import numpy as np
 
 from music21 import converter, note, chord, stream
+from config import MAX_PITCHES, NUM_DURATION_CLASSES, NUM_TIME_SHIFT_CLASSES
+
 PROJECT_DIR = Path(__file__).parent.parent
 DATA_DIR = PROJECT_DIR / "data"
 PROCESSED_DIR = PROJECT_DIR / "data" / "processed"
 
-MAX_PITCHES = 4
-NUM_DURATION_CLASSES = 8
-NUM_TIME_SHIFT_CLASSES = 16
-
 
 def collect_midi_files(data_dir: str, max_files: int = 10) -> list:
+    """
+    Collect all MIDI files from directory and subdirectories.
+    
+    Searches for files with extensions: .midi, .mid (case-insensitive).
+    Removes duplicates before limiting to max_files.
+    
+    Args:
+        data_dir: Root directory to search for MIDI files.
+        max_files: Maximum number of files to return. If None, returns all found.
+        
+    Returns:
+        List of absolute paths to MIDI files.
+    """
     midi_patterns = ['**/*.midi', '**/*.mid', '**/*.MIDI', '**/*.MID']
     midi_files = []
     
@@ -34,6 +45,25 @@ def collect_midi_files(data_dir: str, max_files: int = 10) -> list:
 
 
 def quantize_duration(duration: float) -> int:
+    """
+    Quantize duration to nearest class (0-7).
+    
+    Maps continuous duration to discrete classes:
+    - 0: <= 0.1875 quarter notes
+    - 1: < 0.375
+    - 2: < 0.75
+    - 3: < 1.5
+    - 4: < 3.0
+    - 5: < 6.0
+    - 6: < 12.0
+    - 7: >= 12.0
+    
+    Args:
+        duration: Duration in quarter notes.
+        
+    Returns:
+        Class index 0-7.
+    """
     boundaries = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0]
     for i, b in enumerate(boundaries):
         if duration < b * 1.5:
@@ -42,6 +72,26 @@ def quantize_duration(duration: float) -> int:
 
 
 def quantize_time_shift(time_shift: float) -> int:
+    """
+    Quantize time shift (gap between notes) to nearest class (0-8).
+    
+    Maps continuous time shift to discrete classes:
+    - 0: < 0.0625 quarter notes (silence suppressed)
+    - 1: < 0.1875
+    - 2: < 0.375
+    - 3: < 0.75
+    - 4: < 1.5
+    - 5: < 3.0
+    - 6: < 6.0
+    - 7: < 12.0
+    - 8: >= 12.0
+    
+    Args:
+        time_shift: Time gap in quarter notes.
+        
+    Returns:
+        Class index 0-8.
+    """
     if time_shift < 0.0625:
         return 0
     boundaries = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0]
@@ -52,6 +102,23 @@ def quantize_time_shift(time_shift: float) -> int:
 
 
 def extract_events_from_midi(midi_path: str) -> list:
+    """
+    Extract music events from a MIDI file.
+    
+    Parses MIDI file and extracts all notes, chords, and rests.
+    Creates event list with format: [pitch_0, pitch_1, pitch_2, pitch_3, duration_class, time_shift_class]
+    
+    Pitch encoding:
+    - 0-127: valid MIDI pitches
+    - 128: padding (no pitch at this position in chord)
+    - 129: rest event (all pitches = 129)
+    
+    Args:
+        midi_path: Path to MIDI file.
+        
+    Returns:
+        List of events, empty list if parsing failed.
+    """
     try:
         score = converter.parse(midi_path)
         events = []
@@ -74,6 +141,8 @@ def extract_events_from_midi(midi_path: str) -> list:
                     'is_rest': False
                 })
             elif isinstance(element, note.Rest) and element.quarterLength >= 0.25:
+                # Filter out very short rests (< 0.25 quarter length) which represent
+                # insignificant pauses and may introduce noise in the training data
                 all_notes.append({
                     'pitches': [],
                     'offset': float(element.offset),
@@ -110,8 +179,20 @@ def extract_events_from_midi(midi_path: str) -> list:
 
 
 def extract_sequences(events: list, sequence_length: int = 32) -> list:
+    """
+    Extract fixed-length sequences from a list of events.
+    
+    If events list is shorter than sequence_length, pads with padding events.
+    Otherwise, creates overlapping sequences using sliding window.
+    
+    Args:
+        events: List of events (each event is [pitch_0, pitch_1, pitch_2, pitch_3, duration, time_shift]).
+        sequence_length: Target length for each sequence.
+        
+    Returns:
+        List of sequences, each of length sequence_length.
+    """
     sequences = []
-    event_size = MAX_PITCHES + 2
     
     if len(events) < sequence_length:
         padded = events + [[128] * MAX_PITCHES + [0, 0]] * (sequence_length - len(events))
@@ -127,6 +208,22 @@ def preprocess_dataset(data_dir: str,
                        output_dir: str,
                        sequence_length: int = 32,
                        train_split: float = 0.9):
+    """
+    Preprocess all MIDI files in a directory into training sequences.
+    
+    Workflow:
+    1. Collect all MIDI files from data_dir
+    2. Extract events from each file
+    3. Create fixed-length sequences
+    4. Split into training/validation sets
+    5. Save as .npy files and generate statistics
+    
+    Args:
+        data_dir: Directory containing MIDI files.
+        output_dir: Directory to save preprocessed data.
+        sequence_length: Length of event sequences (default: 32).
+        train_split: Fraction for training (rest goes to validation, default: 0.9).
+    """
     os.makedirs(output_dir, exist_ok=True)
     
     midi_files = collect_midi_files(data_dir)
@@ -192,10 +289,14 @@ def preprocess_dataset(data_dir: str,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocessing of MIDI files")
-    parser.add_argument("--data_dir", type=str, default=str(DATA_DIR))
-    parser.add_argument("--output_dir", type=str, default=str(PROCESSED_DIR))
-    parser.add_argument("--sequence_length", type=int, default=32)
-    parser.add_argument("--train_split", type=float, default=0.9)
+    parser.add_argument("--data_dir", type=str, default=str(DATA_DIR),
+                        help="directory containing MIDI files (default: data/)")
+    parser.add_argument("--output_dir", type=str, default=str(PROCESSED_DIR),
+                        help="directory to save preprocessed data (default: data/processed/)")
+    parser.add_argument("--sequence_length", type=int, default=32,
+                        help="length of event sequences (default: 32)")
+    parser.add_argument("--train_split", type=float, default=0.9,
+                        help="fraction of data to use for training (default: 0.9)")
     
     args = parser.parse_args()
     

@@ -6,17 +6,32 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
+from config import MAX_PITCHES, VOCAB_SIZE, NUM_DURATION_CLASSES, NUM_TIME_SHIFT_CLASSES
+
 PROJECT_DIR = Path(__file__).parent.parent
 DATA_DIR = PROJECT_DIR / "data" / "processed"
 MODELS_DIR = PROJECT_DIR / "models" / "music_vae"
 
-MAX_PITCHES = 4
-VOCAB_SIZE = 130
-NUM_DURATION_CLASSES = 8
-NUM_TIME_SHIFT_CLASSES = 16
-
 
 def build_model(sequence_length: int, learning_rate: float = 0.001) -> keras.Model:
+    """
+    Build a 6-head LSTM model for polyphonic music generation.
+    
+    Architecture:
+    - Input: sequences of shape (sequence_length, MAX_PITCHES + 2)
+    - 2x LSTM layers (256 and 128 units) with dropout
+    - 2x Dense layers (256 and 128 units) with ReLU
+    - 6 output heads: 4 pitch heads + 1 duration head + 1 time_shift head
+    
+    Each output head uses softmax activation with sparse categorical crossentropy loss.
+    
+    Args:
+        sequence_length: Length of input sequences.
+        learning_rate: Adam optimizer learning rate.
+        
+    Returns:
+        Compiled Keras Model.
+    """
     inputs = keras.Input(shape=(sequence_length, MAX_PITCHES + 2))
     
     x = keras.layers.LSTM(256, return_sequences=True)(inputs)
@@ -61,6 +76,21 @@ def build_model(sequence_length: int, learning_rate: float = 0.001) -> keras.Mod
 
 
 def load_data(data_dir: str = None):
+    """
+    Load preprocessed training and validation sequences.
+    
+    Loads .npy files created by preprocess.py. Expected format:
+    - train_sequences.npy: array of shape (n_samples, sequence_length, 6)
+    - validation_sequences.npy: array of shape (n_val, sequence_length, 6)
+    
+    Splits sequences into X (features, first 31 timesteps) and y (targets, last timestep).
+    
+    Args:
+        data_dir: Directory containing .npy files. Uses DATA_DIR if None.
+        
+    Returns:
+        Tuple of (X_train, y_train, X_val, y_val). Returns (None, None, None, None) if files not found.
+    """
     if data_dir is None:
         data_dir = str(DATA_DIR)
     
@@ -92,6 +122,20 @@ def load_data(data_dir: str = None):
 
 
 def prepare_targets(y_data):
+    """
+    Convert target array into dictionary format for multi-head model training.
+    
+    Splits the last event (shape (n_samples, 6)) into 6 separate tensors:
+    - pitch_0, pitch_1, pitch_2, pitch_3: indices 0-3 (pitch class predictions)
+    - duration: index 4 (duration class prediction)
+    - time_shift: index 5 (time shift class prediction)
+    
+    Args:
+        y_data: Array of shape (n_samples, 6) containing target events.
+        
+    Returns:
+        Dictionary with keys 'pitch_0', 'pitch_1', 'pitch_2', 'pitch_3', 'duration', 'time_shift'.
+    """
     targets = {}
     for i in range(MAX_PITCHES):
         targets[f'pitch_{i}'] = y_data[:, i].astype(np.int32)
@@ -108,6 +152,27 @@ def train_model(model: keras.Model,
                 num_epochs: int = 20,
                 batch_size: int = 64,
                 model_dir: str = None):
+    """
+    Train the music generation model.
+    
+    Uses callbacks:
+    - ModelCheckpoint: saves best model based on validation loss
+    - EarlyStopping: stops training if validation loss plateaus (patience=5)
+    - ReduceLROnPlateau: reduces learning rate if loss plateaus (factor=0.5, patience=3)
+    
+    Args:
+        model: Compiled Keras model.
+        X_train: Training features of shape (n_train, 31, 6).
+        y_train: Training targets of shape (n_train, 6).
+        X_val: Validation features. If None, no validation is used.
+        y_val: Validation targets. If None, no validation is used.
+        num_epochs: Number of training epochs.
+        batch_size: Batch size for training.
+        model_dir: Directory to save models. Uses MODELS_DIR if None.
+        
+    Returns:
+        Keras History object with training/validation metrics.
+    """
     if model_dir is None:
         model_dir = str(MODELS_DIR)
     
@@ -154,6 +219,17 @@ def train_model(model: keras.Model,
 
 
 def save_metrics(history, model_dir: str, learning_rate: float):
+    """
+    Save training metrics to JSON file.
+    
+    Extracts all metrics from the training history and saves to training_metrics.json.
+    Includes learning rate and number of epochs trained.
+    
+    Args:
+        history: Keras History object from model.fit().
+        model_dir: Directory where to save the metrics file.
+        learning_rate: Learning rate used during training.
+    """
     metrics = {
         'learning_rate': learning_rate,
         'epochs_trained': len(history.history['loss']),
@@ -173,11 +249,16 @@ def save_metrics(history, model_dir: str, learning_rate: float):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="train music generation model")
-    parser.add_argument("--data_dir", type=str, default=str(DATA_DIR))
-    parser.add_argument("--model_dir", type=str, default=str(MODELS_DIR))
-    parser.add_argument("--num_epochs", type=int, default=20)
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--learning_rate", type=float, default=0.001)
+    parser.add_argument("--data_dir", type=str, default=str(DATA_DIR),
+                        help="directory containing preprocessed data (default: data/processed/)")
+    parser.add_argument("--model_dir", type=str, default=str(MODELS_DIR),
+                        help="directory to save trained model (default: models/music_vae/)")
+    parser.add_argument("--num_epochs", type=int, default=20,
+                        help="number of training epochs (default: 20)")
+    parser.add_argument("--batch_size", type=int, default=64,
+                        help="training batch size (default: 64)")
+    parser.add_argument("--learning_rate", type=float, default=0.001,
+                        help="optimizer learning rate (default: 0.001)")
     
     args = parser.parse_args()
     

@@ -6,21 +6,26 @@ import tensorflow as tf
 from tensorflow import keras
 
 from music21 import stream, instrument, note, chord, tempo, meter
+from config import MAX_PITCHES, VOCAB_SIZE, NUM_DURATION_CLASSES, NUM_TIME_SHIFT_CLASSES, DURATION_MAP, TIME_SHIFT_MAP
+
 PROJECT_DIR = Path(__file__).parent.parent
 MODELS_DIR = PROJECT_DIR / "models" / "music_vae"
 GENERATED_DIR = PROJECT_DIR / "generated"
 
-MAX_PITCHES = 4
-VOCAB_SIZE = 130
-NUM_DURATION_CLASSES = 8
-NUM_TIME_SHIFT_CLASSES = 16
-
-DURATION_MAP = {0: 0.125, 1: 0.25, 2: 0.5, 3: 1.0, 4: 2.0, 5: 4.0, 6: 8.0, 7: 16.0}
-TIME_SHIFT_MAP = {0: 0.0, 1: 0.125, 2: 0.25, 3: 0.5, 4: 1.0, 5: 2.0, 6: 4.0, 7: 8.0, 
-                  8: 16.0, 9: 0.0625, 10: 0.0625, 11: 0.0625, 12: 0.0625, 13: 0.0625, 14: 0.0625, 15: 0.0625}
-
 
 def find_latest_model(model_dir: str = None) -> str:
+    """
+    Find the latest trained model in the models directory.
+    
+    Searches for best_model.h5 first (checkpoint with best validation loss),
+    then falls back to model_final.h5 (final trained model).
+    
+    Args:
+        model_dir: Directory containing models. Defaults to MODELS_DIR if None.
+        
+    Returns:
+        Path to the model file, or None if no model found.
+    """
     if model_dir is None:
         model_dir = str(MODELS_DIR)
     
@@ -37,6 +42,15 @@ def find_latest_model(model_dir: str = None) -> str:
 
 
 def load_model(model_path: str) -> keras.Model:
+    """
+    Load a trained Keras model from disk.
+    
+    Args:
+        model_path: Path to the .h5 model file.
+        
+    Returns:
+        Loaded Keras model, or None if loading failed.
+    """
     try:
         model = keras.models.load_model(model_path)
         print(f"model loaded: {model_path}")
@@ -56,6 +70,28 @@ def generate_sequence(model: keras.Model,
                       seed_sequence: np.ndarray,
                       length: int = 128,
                       temperature: float = 0.8) -> list:
+    """
+    Generate a sequence of music events using the trained model.
+    
+    Takes a seed sequence and generates additional events by:
+    1. Feeding the last 31 events to the model
+    2. Sampling predictions for each output head using temperature
+    3. Repeating until target length is reached
+    
+    The model outputs 6 values per event:
+    - pitch_0, pitch_1, pitch_2, pitch_3: polyphonic pitches (0-129, where 129 = rest)
+    - duration: duration class (0-7)
+    - time_shift: time shift class (0-8)
+    
+    Args:
+        model: Trained Keras model with 6 output heads.
+        seed_sequence: Initial sequence of shape (sequence_length, 6).
+        length: Total target length of generated sequence.
+        temperature: Sampling temperature (higher = more random, lower = more deterministic).
+        
+    Returns:
+        List of events, each event is a list of 6 integers.
+    """
     generated = [list(event) for event in seed_sequence]
     
     print(f"\ngeneration of {length} events (temperature={temperature})...")
@@ -91,6 +127,28 @@ def sequence_to_midi(events_sequence: list,
                      output_path: str,
                      tempo_bpm: int = 120,
                      instrument_name: str = "Piano") -> bool:
+    """
+    Convert a sequence of music events to a MIDI file.
+    
+    Event format: [pitch_0, pitch_1, pitch_2, pitch_3, duration_class, time_shift_class]
+    
+    Rules:
+    - Pitches in range [0, 127] are valid note pitches
+    - Pitch value 129 represents a rest event (all pitches = 129)
+    - Pitch value 128 represents no pitch (ignored in chord building)
+    - Multiple valid pitches create a chord
+    - Time shift is applied before placing the note/chord/rest
+    - Events with all pitches as 128 or 129 are skipped silently (padding)
+    
+    Args:
+        events_sequence: List of events, each with 6 values.
+        output_path: Path where MIDI file will be saved.
+        tempo_bpm: Tempo in beats per minute.
+        instrument_name: Instrument type (Piano, Violin, etc).
+        
+    Returns:
+        True if successful, False otherwise.
+    """
     try:
         score = stream.Score()
         part = stream.Part()
@@ -124,6 +182,7 @@ def sequence_to_midi(events_sequence: list,
                     r = note.Rest(quarterLength=duration)
                     r.offset = current_offset
                     part.append(r)
+                # Else: all pitches are padding (128), skip silently
             elif len(valid_pitches) == 1:
                 n = note.Note(valid_pitches[0], quarterLength=duration)
                 n.offset = current_offset
@@ -146,9 +205,19 @@ def sequence_to_midi(events_sequence: list,
         return False
 
 
-def create_random_seed_sequence(model: keras.Model,
-                                sequence_length: int = 32,
-                                temperature: float = 0.8) -> np.ndarray:
+def create_random_seed_sequence(sequence_length: int = 32) -> np.ndarray:
+    """
+    Create a random seed sequence for generation.
+    
+    Generates random events with pitches in the middle range (50-90)
+    and random duration/time_shift classes to start generation.
+    
+    Args:
+        sequence_length: Number of events to generate for seed.
+        
+    Returns:
+        Array of shape (sequence_length, 6) with random events.
+    """
     seed = []
     
     for i in range(sequence_length):
@@ -171,6 +240,18 @@ def generate_and_save(model_path: str,
                       num_events: int = 256,
                       temperature: float = 0.8,
                       num_samples: int = 1):
+    """
+    Generate MIDI files using the trained model.
+    
+    Loads model, generates specified number of sequences, converts to MIDI.
+    
+    Args:
+        model_path: Path to trained model file.
+        output_dir: Directory to save MIDI files.
+        num_events: Number of events to generate per sequence.
+        temperature: Sampling temperature for generation.
+        num_samples: Number of MIDI files to generate.
+    """
     model = load_model(model_path)
     if model is None:
         return
@@ -208,11 +289,16 @@ def generate_and_save(model_path: str,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="music generation with trained model")
-    parser.add_argument("--model_dir", type=str, default=str(MODELS_DIR))
-    parser.add_argument("--output_dir", type=str, default=str(GENERATED_DIR))
-    parser.add_argument("--num_events", type=int, default=256)
-    parser.add_argument("--temperature", type=float, default=0.8)
-    parser.add_argument("--num_samples", type=int, default=1)
+    parser.add_argument("--model_dir", type=str, default=str(MODELS_DIR), 
+                        help="directory containing trained models (default: models/music_vae)")
+    parser.add_argument("--output_dir", type=str, default=str(GENERATED_DIR),
+                        help="directory to save generated MIDI files (default: generated/)")
+    parser.add_argument("--num_events", type=int, default=256,
+                        help="number of events to generate per MIDI file (default: 256)")
+    parser.add_argument("--temperature", type=float, default=0.8,
+                        help="sampling temperature: higher = more random, lower = more deterministic (default: 0.8)")
+    parser.add_argument("--num_samples", type=int, default=1,
+                        help="number of MIDI files to generate (default: 1)")
     
     args = parser.parse_args()
     
