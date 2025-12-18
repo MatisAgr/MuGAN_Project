@@ -54,18 +54,32 @@ export default function NavbarMenu() {
         <MenuItem setActive={setActive} active={active} item="Database" icon={<Database className="w-4 h-4 text-green-400" />}>
           <div className="text-sm grid grid-cols-2 gap-6 p-4">
             <ProductItem
-              title="Training Data"
-              href="/database?filter=training"
+              title="Train Data"
+              href="/database?filter=Train"
               src="https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&h=200&fit=crop"
-              description="Browse the dataset used for training the AI model"
+              description="Browse training dataset used for AI model training"
+              icon={<Database className="w-5 h-5 text-green-400" />}
+            />
+            <ProductItem
+              title="Test Data"
+              href="/database?filter=Test"
+              src="https://images.unsplash.com/photo-1516321318423-f06f70504504?w=400&h=200&fit=crop"
+              description="Explore test dataset for model evaluation"
               icon={<Database className="w-5 h-5 text-blue-400" />}
             />
             <ProductItem
+              title="Validation Data"
+              href="/database?filter=Validation"
+              src="https://images.unsplash.com/photo-1487215078519-e21cc028cb29?w=400&h=200&fit=crop"
+              description="Validation dataset for performance verification"
+              icon={<Database className="w-5 h-5 text-orange-400" />}
+            />
+            <ProductItem
               title="Generated Music"
-              href="/database?filter=generated"
+              href="/database?filter=Generated"
               src="https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=400&h=200&fit=crop"
-              description="Explore music created by the community and AI"
-              icon={<Music className="w-5 h-5 text-green-400" />}
+              description="Explore music created by the AI model"
+              icon={<Music className="w-5 h-5 text-pink-400" />}
             />
           </div>
         </MenuItem>
