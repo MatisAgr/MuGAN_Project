@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 import argparse
 import time
@@ -354,4 +354,3 @@ if __name__ == "__main__":
         sequence_length=args.sequence_length,
         learning_rate=args.learning_rate
     )
-
