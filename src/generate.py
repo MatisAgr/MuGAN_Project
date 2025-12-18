@@ -226,8 +226,8 @@ def create_random_seed_sequence(sequence_length: int = 32) -> np.ndarray:
         pitch_3 = 128 if np.random.rand() > 0.1 else np.random.randint(50, 90)
         pitch_4 = 128
         
-        duration = np.random.randint(0, 8)
-        time_shift = np.random.randint(0, 8)
+        duration = np.random.randint(0, NUM_DURATION_CLASSES)
+        time_shift = np.random.randint(0, NUM_TIME_SHIFT_CLASSES)
         
         event = [pitch, pitch_2, pitch_3, pitch_4, duration, time_shift]
         seed.append(event)
@@ -270,7 +270,7 @@ def generate_and_save(model_path: str,
     for i in range(num_samples):
         print(f"\n[{i+1}/{num_samples}] generation of file {i+1}...")
         
-        seed = create_random_seed_sequence(model, 32, temperature)
+        seed = create_random_seed_sequence(32)
         
         sequence = generate_sequence(model, seed, num_events, temperature)
         
