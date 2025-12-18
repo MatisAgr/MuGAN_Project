@@ -1,45 +1,89 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Play, Square, Database } from 'lucide-react';
+import { 
+  startPreprocessing,
+  stopPreprocessing, 
+  getPreprocessingStats,
+  PreprocessingWebSocket,
+  PreprocessingStats 
+} from '../callApi/training';
 
 export default function Preprocessing() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [stats, setStats] = useState({
-    total_midi_files: 10,
-    total_sequences: 19381,
-    train_sequences: 17442,
-    val_sequences: 1939,
+  const [stats, setStats] = useState<PreprocessingStats>({
+    total_midi_files: 0,
+    total_sequences: 0,
+    train_sequences: 0,
+    val_sequences: 0,
     sequence_length: 32,
-    min_pitch: 22,
-    max_pitch: 101,
-    avg_pitch: 64.76329287491747,
-    total_notes: 19691,
+    min_pitch: 0,
+    max_pitch: 0,
+    avg_pitch: 0,
+    total_notes: 0,
   });
   const [progress, setProgress] = useState(0);
+  const [message, setMessage] = useState('Ready to start preprocessing...');
+  const [maxFiles, setMaxFiles] = useState(10);
+  const wsRef = useRef<PreprocessingWebSocket | null>(null);
 
   useEffect(() => {
-    if (!isProcessing) return;
+    const loadStats = async () => {
+      const existingStats = await getPreprocessingStats();
+      if (existingStats) {
+        setStats(existingStats);
+        setProgress(100);
+        setMessage('Previous preprocessing completed');
+      }
+    };
+    loadStats();
+  }, []);
 
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
+  useEffect(() => {
+    if (!isProcessing) {
+      if (wsRef.current) {
+        wsRef.current.disconnect();
+        wsRef.current = null;
+      }
+      return;
+    }
+
+    if (!wsRef.current) {
+      wsRef.current = new PreprocessingWebSocket();
+      wsRef.current.connect(
+        (status) => {
+          setProgress(status.progress);
+          setMessage(status.message);
+        },
+        async () => {
           setIsProcessing(false);
-          return 100;
+          const newStats = await getPreprocessingStats();
+          if (newStats) {
+            setStats(newStats);
+          }
         }
-        return prev + 2;
-      });
-    }, 100);
+      );
+    }
 
-    return () => clearInterval(interval);
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.disconnect();
+        wsRef.current = null;
+      }
+    };
   }, [isProcessing]);
 
-  const handleStartStop = () => {
+  const handleStartStop = async () => {
     if (isProcessing) {
+      await stopPreprocessing();
       setIsProcessing(false);
       setProgress(0);
     } else {
-      setIsProcessing(true);
-      setProgress(0);
+      const success = await startPreprocessing(32, 0.9, maxFiles);
+      if (success) {
+        setIsProcessing(true);
+        setProgress(0);
+        setMessage('Starting preprocessing...');
+      }
     }
   };
 
@@ -50,26 +94,40 @@ export default function Preprocessing() {
           <Database className="w-8 h-8 text-purple-400" />
           <h1 className="text-3xl font-bold text-white">Data Preprocessing</h1>
         </div>
-        <button
-          onClick={handleStartStop}
-          className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
-            isProcessing
-              ? 'bg-red-600 hover:bg-red-500 text-white'
-              : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white'
-          }`}
-        >
-          {isProcessing ? (
-            <>
-              <Square className="w-5 h-5" />
-              Stop Preprocessing
-            </>
-          ) : (
-            <>
-              <Play className="w-5 h-5" />
-              Start Preprocessing
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-white font-semibold">Max Files:</label>
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              value={maxFiles}
+              onChange={(e) => setMaxFiles(Math.max(1, parseInt(e.target.value) || 10))}
+              disabled={isProcessing}
+              className="px-3 py-2 bg-slate-900 border border-purple-500/30 rounded-lg text-white w-20 disabled:opacity-50"
+            />
+          </div>
+          <button
+            onClick={handleStartStop}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
+              isProcessing
+                ? 'bg-red-600 hover:bg-red-500 text-white'
+                : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white'
+            }`}
+          >
+            {isProcessing ? (
+              <>
+                <Square className="w-5 h-5" />
+                Stop Preprocessing
+              </>
+            ) : (
+              <>
+                <Play className="w-5 h-5" />
+                Start Preprocessing
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 grid grid-cols-12 gap-6 p-8 overflow-hidden">
@@ -169,12 +227,13 @@ export default function Preprocessing() {
               <div className="space-y-2 font-mono text-sm">
                 {isProcessing ? (
                   <>
-                    <div className="text-green-400">Extracting MIDI notes...</div>
-                    {progress > 20 && <div className="text-blue-400">Creating sequences (length: {stats.sequence_length})...</div>}
-                    {progress > 50 && <div className="text-purple-400">Splitting train/validation sets...</div>}
-                    {progress > 80 && <div className="text-indigo-400">Saving to numpy files...</div>}
+                    <div className="text-blue-400">{message}</div>
+                    {progress > 10 && <div className="text-green-400">Extracting MIDI notes...</div>}
+                    {progress > 30 && <div className="text-blue-400">Creating sequences (length: {stats.sequence_length})...</div>}
+                    {progress > 60 && <div className="text-purple-400">Splitting train/validation sets...</div>}
+                    {progress > 90 && <div className="text-indigo-400">Saving to numpy files...</div>}
                   </>
-                ) : progress === 100 ? (
+                ) : progress === 100 && stats.total_midi_files > 0 ? (
                   <>
                     <div className="text-green-400">✓ Extracted {stats.total_notes.toLocaleString()} notes from {stats.total_midi_files} MIDI files</div>
                     <div className="text-green-400">✓ Created {stats.total_sequences.toLocaleString()} sequences</div>
@@ -183,7 +242,7 @@ export default function Preprocessing() {
                     <div className="text-green-400">✓ Data saved successfully. Ready for training.</div>
                   </>
                 ) : (
-                  <div className="text-slate-500">Ready to start preprocessing...</div>
+                  <div className="text-slate-500">{message}</div>
                 )}
               </div>
             </div>

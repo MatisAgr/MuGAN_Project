@@ -5,3 +5,4 @@ websockets
 python-multipart
 motor
 python-dotenv
+music21

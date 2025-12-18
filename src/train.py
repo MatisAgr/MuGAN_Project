@@ -1,18 +1,67 @@
 import os
 import json
 import argparse
+import time
 from pathlib import Path
+from typing import Callable, Optional
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 import matplotlib.pyplot as plt
 
-tf.config.set_visible_devices([], 'GPU')
+# tf.config.set_visible_devices([], 'GPU')
 tf.data.experimental.enable_debug_mode()
 PROJECT_DIR = Path(__file__).parent.parent
 DATA_PROCESSED_DIR = PROJECT_DIR / "data" / "processed"
 MODELS_DIR = PROJECT_DIR / "models" / "music_vae"
+
+
+class TrainingCallback(keras.callbacks.Callback):
+    def __init__(self, total_epochs: int, stats_callback: Optional[Callable] = None, start_time: float = None, should_stop: Optional[Callable] = None):
+        super().__init__()
+        self.total_epochs = total_epochs
+        self.stats_callback = stats_callback
+        self.start_time = start_time or time.time()
+        self.epoch_start_time = None
+        self.should_stop = should_stop
+    
+    def on_epoch_begin(self, epoch, logs=None):
+        self.epoch_start_time = time.time()
+        if self.should_stop and self.should_stop():
+            self.model.stop_training = True
+    
+    def on_epoch_end(self, epoch, logs=None):
+        if self.stats_callback and logs:
+            elapsed_time = time.time() - self.start_time
+            epoch_time = time.time() - self.epoch_start_time
+            eta = epoch_time * (self.total_epochs - epoch - 1)
+            
+            stats = {
+                "epoch": epoch + 1,
+                "total_epochs": self.total_epochs,
+                "loss": float(logs.get('loss', 0)),
+                "accuracy": float(logs.get('pitch_accuracy', 0)),
+                "val_loss": float(logs.get('val_loss', 0)),
+                "val_accuracy": float(logs.get('val_pitch_accuracy', 0)),
+                "learning_rate": float(keras.backend.get_value(self.model.optimizer.lr)),
+                "batch_size": int(self.params.get('batch_size', 32)),
+                "time_elapsed": elapsed_time,
+                "eta": eta,
+                "pitch_loss": float(logs.get('pitch_loss', 0)),
+                "pitch_accuracy": float(logs.get('pitch_accuracy', 0)),
+                "duration_loss": float(logs.get('duration_loss', 0)),
+                "duration_accuracy": float(logs.get('duration_accuracy', 0)),
+                "val_pitch_loss": float(logs.get('val_pitch_loss', 0)),
+                "val_pitch_accuracy": float(logs.get('val_pitch_accuracy', 0)),
+                "val_duration_loss": float(logs.get('val_duration_loss', 0)),
+                "val_duration_accuracy": float(logs.get('val_duration_accuracy', 0))
+            }
+            
+            self.stats_callback(stats)
+        
+        if self.should_stop and self.should_stop():
+            self.model.stop_training = True
 
 
 def build_model(sequence_length: int, vocab_size: int = 128, learning_rate: float = 0.001) -> keras.Model:
@@ -136,7 +185,9 @@ def train_model(train_dir: str,
                 num_epochs: int = 20,
                 batch_size: int = 32,
                 sequence_length: int = 32,
-                learning_rate: float = 0.001):
+                learning_rate: float = 0.001,
+                stats_callback: Optional[Callable] = None,
+                should_stop: Optional[Callable] = None):
     """
     train_dir: dossier contenant les données prétraitées
     model_dir: dossier pour sauvegarder le modèle
@@ -144,8 +195,11 @@ def train_model(train_dir: str,
     batch_size: taille des batches
     sequence_length: longueur des séquences
     learning_rate: learning rate pour l'optimiseur Adam
+    stats_callback: fonction appelée à chaque epoch avec les statistiques
+    should_stop: fonction qui retourne True si l'entraînement doit être arrêté
     """
     os.makedirs(model_dir, exist_ok=True)
+    start_time = time.time()
     
     print("=" * 60)
     print("training model")
@@ -182,32 +236,46 @@ def train_model(train_dir: str,
     model.summary()
     
     # Callbacks
-    checkpoint = keras.callbacks.ModelCheckpoint(
-        os.path.join(model_dir, 'best_model.h5'),
-        monitor='val_loss',
-        save_best_only=True,
-        verbose=1
-    )
+    callbacks_list = [
+        keras.callbacks.ModelCheckpoint(
+            os.path.join(model_dir, 'best_model.h5'),
+            monitor='val_loss',
+            save_best_only=True,
+            verbose=1
+        ),
+        keras.callbacks.EarlyStopping(
+            monitor='val_loss',
+            patience=3,
+            verbose=1
+        )
+    ]
     
-    early_stop = keras.callbacks.EarlyStopping(
-        monitor='val_loss',
-        patience=3,
-        verbose=1
-    )
+    if stats_callback:
+        training_cb = TrainingCallback(
+            total_epochs=num_epochs,
+            stats_callback=stats_callback,
+            start_time=start_time,
+            should_stop=should_stop
+        )
+        callbacks_list.append(training_cb)
     
-    # Entraîner le modèle
     print("\ntraining start...")
     print(f"learning rate: {learning_rate}")
     print(f"epochs: {num_epochs}")
     print(f"batch size: {batch_size}")
-    history = model.fit(
-        X_train, {'pitch': y_pitch_train, 'duration': y_duration_train},
-        epochs=num_epochs,
-        batch_size=batch_size,
-        validation_data=(X_val, {'pitch': y_pitch_val, 'duration': y_duration_val}),
-        callbacks=[checkpoint, early_stop],
-        verbose=1
-    )
+    
+    try:
+        history = model.fit(
+            X_train, {'pitch': y_pitch_train, 'duration': y_duration_train},
+            epochs=num_epochs,
+            batch_size=batch_size,
+            validation_data=(X_val, {'pitch': y_pitch_val, 'duration': y_duration_val}),
+            callbacks=callbacks_list,
+            verbose=1
+        )
+    except KeyboardInterrupt:
+        print("\ntraining interrupted by user")
+        return None
     
     # save model
     final_model_path = os.path.join(model_dir, 'model_final.h5')
