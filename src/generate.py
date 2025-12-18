@@ -224,7 +224,7 @@ def create_random_seed_sequence(sequence_length: int = 32) -> np.ndarray:
         pitch = np.random.randint(50, 90)
         pitch_2 = 128 if np.random.rand() > 0.3 else np.random.randint(50, 90)
         pitch_3 = 128 if np.random.rand() > 0.1 else np.random.randint(50, 90)
-        pitch_4 = 128
+        pitch_4 = 128 if np.random.rand() > 0.05 else np.random.randint(50, 90)
         
         duration = np.random.randint(0, NUM_DURATION_CLASSES)
         time_shift = np.random.randint(0, NUM_TIME_SHIFT_CLASSES)
