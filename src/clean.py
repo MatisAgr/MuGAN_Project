@@ -1,11 +1,20 @@
 import json
 import unicodedata
+from pathlib import Path
 
 def nettoyer_maestro_generique():
-    fichier_entree = 'maestro-v2.0.0.json'
-    fichier_sortie = 'maestro_clean.json'
+    # Définition des chemins dynamiques
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    DATA_DIR = BASE_DIR / "data"
+    
+    fichier_entree = DATA_DIR / 'maestro-v2.0.0.json'
+    fichier_sortie = DATA_DIR / 'maestro_clean.json'
 
     try:
+        if not fichier_entree.exists():
+            print(f" Erreur : Le fichier {fichier_entree} est introuvable.")
+            return
+
         with open(fichier_entree, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
@@ -13,27 +22,22 @@ def nettoyer_maestro_generique():
         seen = set()
 
         def clean_value(val):
-            """Nettoie et uniformise les valeurs"""
+            """Nettoie et uniformise les valeurs (accents, espaces, arrondis)"""
             if val is None:
                 return None
             if isinstance(val, str):
-                # Supprimer espaces et normaliser accents
                 val = val.strip()
+                # Normalisation Unicode pour supprimer les accents et caractères spéciaux
                 val = unicodedata.normalize('NFKD', val).encode('ascii', 'ignore').decode('utf-8')
-                # Si la chaîne est vide après nettoyage, on ignore
-                if val == "":
-                    return None
-                return val
+                return val if val != "" else None
             if isinstance(val, (int, float)):
-                return round(val, 2)  # uniformiser les nombres
+                return round(val, 2)
             return val
 
         for item in data:
-            midi_brut = item.get("midi_filename", "").replace('\\', '/')
-            midi_propre = clean_value(midi_brut.split('/')[-1])
-
-            audio_brut = item.get("audio_filename", "").replace('\\', '/')
-            audio_propre = clean_value(audio_brut.split('/')[-1])
+            # Nettoyage des noms de fichiers (extraction du nom seul)
+            midi_propre = clean_value(item.get("midi_filename", "").replace('\\', '/').split('/')[-1])
+            audio_propre = clean_value(item.get("audio_filename", "").replace('\\', '/').split('/')[-1])
 
             nouveau_doc = {
                 "composer": clean_value(item.get("canonical_composer")),
@@ -45,11 +49,16 @@ def nettoyer_maestro_generique():
                 "split": clean_value(item.get("split"))
             }
 
-            # Supprimer les champs vides ou None
+            # On ne garde que les champs qui ne sont pas None
             nouveau_doc = {k: v for k, v in nouveau_doc.items() if v is not None}
 
-            # Vérifier doublons (clé unique = composer + title + midi_filename)
-            key = (nouveau_doc.get("composer"), nouveau_doc.get("title"), nouveau_doc.get("midi_filename"))
+            # Détection des doublons (clé unique basée sur compositeur, titre et fichier MIDI)
+            key = (
+                str(nouveau_doc.get("composer", "")).lower(),
+                str(nouveau_doc.get("title", "")).lower(),
+                str(nouveau_doc.get("midi_filename", "")).lower()
+            )
+
             if key not in seen and nouveau_doc:
                 donnees_nettoyees.append(nouveau_doc)
                 seen.add(key)
@@ -57,11 +66,10 @@ def nettoyer_maestro_generique():
         with open(fichier_sortie, 'w', encoding='utf-8') as f_out:
             json.dump(donnees_nettoyees, f_out, indent=4, ensure_ascii=False)
 
-        print(f" Nettoyage terminé : {len(donnees_nettoyees)} entrées uniques")
-        print(f"Le fichier '{fichier_sortie}' est prêt pour MongoDB.")
+        print(f"Nettoyage terminé : {len(donnees_nettoyees)} entrées uniques sauvegardées.")
 
     except Exception as e:
-        print(f" Erreur : {e}")
+        print(f"Erreur lors du nettoyage : {e}")
 
 if __name__ == "__main__":
     nettoyer_maestro_generique()
