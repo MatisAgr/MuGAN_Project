@@ -297,6 +297,9 @@ export class PreprocessingWebSocket {
 
       this.ws.onclose = () => {
         console.log('[WS] Disconnected from preprocessing stream');
+        if (this.onCompleteCallback) {
+          this.onCompleteCallback();
+        }
         this.ws = null;
       };
 

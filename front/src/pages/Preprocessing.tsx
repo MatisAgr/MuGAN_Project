@@ -168,7 +168,7 @@ export default function Preprocessing() {
               </div>
               <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-4">
                 <p className="text-xs text-slate-400 mb-1">Total Notes</p>
-                <p className="text-2xl font-bold text-purple-400">{stats.total_notes.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-purple-400">{(stats.total_notes ?? 0).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -180,20 +180,20 @@ export default function Preprocessing() {
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-4">
                 <p className="text-xs text-slate-400 mb-2">Total Sequences</p>
-                <p className="text-3xl font-bold text-indigo-400">{stats.total_sequences.toLocaleString()}</p>
+                <p className="text-3xl font-bold text-indigo-400">{(stats.total_sequences ?? 0).toLocaleString()}</p>
               </div>
               <div className="bg-slate-900/50 border border-green-500/30 rounded-lg p-4">
                 <p className="text-xs text-slate-400 mb-2">Train Sequences</p>
-                <p className="text-3xl font-bold text-green-400">{stats.train_sequences.toLocaleString()}</p>
+                <p className="text-3xl font-bold text-green-400">{(stats.train_sequences ?? 0).toLocaleString()}</p>
                 <p className="text-xs text-green-300 mt-1">
-                  {((stats.train_sequences / stats.total_sequences) * 100).toFixed(1)}%
+                  {stats.total_sequences ? (((stats.train_sequences ?? 0) / stats.total_sequences) * 100).toFixed(1) : '0.0'}%
                 </p>
               </div>
               <div className="bg-slate-900/50 border border-blue-500/30 rounded-lg p-4">
                 <p className="text-xs text-slate-400 mb-2">Val Sequences</p>
-                <p className="text-3xl font-bold text-blue-400">{stats.val_sequences.toLocaleString()}</p>
+                <p className="text-3xl font-bold text-blue-400">{(stats.val_sequences ?? 0).toLocaleString()}</p>
                 <p className="text-xs text-blue-300 mt-1">
-                  {((stats.val_sequences / stats.total_sequences) * 100).toFixed(1)}%
+                  {stats.total_sequences ? (((stats.val_sequences ?? 0) / stats.total_sequences) * 100).toFixed(1) : '0.0'}%
                 </p>
               </div>
             </div>
@@ -216,7 +216,7 @@ export default function Preprocessing() {
               </div>
               <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-4">
                 <p className="text-xs text-slate-400 mb-2">Avg Pitch</p>
-                <p className="text-3xl font-bold text-indigo-400">{stats.avg_pitch.toFixed(2)}</p>
+                <p className="text-3xl font-bold text-indigo-400">{(stats.avg_pitch ?? 0).toFixed(2)}</p>
               </div>
             </div>
           </div>
@@ -235,10 +235,10 @@ export default function Preprocessing() {
                   </>
                 ) : progress === 100 && stats.total_midi_files > 0 ? (
                   <>
-                    <div className="text-green-400">✓ Extracted {stats.total_notes.toLocaleString()} notes from {stats.total_midi_files} MIDI files</div>
-                    <div className="text-green-400">✓ Created {stats.total_sequences.toLocaleString()} sequences</div>
-                    <div className="text-green-400">✓ Train/Val split: {stats.train_sequences.toLocaleString()}/{stats.val_sequences.toLocaleString()}</div>
-                    <div className="text-green-400">✓ Pitch range: {stats.min_pitch}-{stats.max_pitch} (avg: {stats.avg_pitch.toFixed(2)})</div>
+                    <div className="text-green-400">✓ Extracted {(stats.total_notes ?? 0).toLocaleString()} notes from {stats.total_midi_files} MIDI files</div>
+                    <div className="text-green-400">✓ Created {(stats.total_sequences ?? 0).toLocaleString()} sequences</div>
+                    <div className="text-green-400">✓ Train/Val split: {(stats.train_sequences ?? 0).toLocaleString()}/{(stats.val_sequences ?? 0).toLocaleString()}</div>
+                    <div className="text-green-400">✓ Pitch range: {stats.min_pitch}-{stats.max_pitch} (avg: {(stats.avg_pitch ?? 0).toFixed(2)})</div>
                     <div className="text-green-400">✓ Data saved successfully. Ready for training.</div>
                   </>
                 ) : (
