@@ -4,3 +4,4 @@ instruction.md
 .env
 /data
 __pycache__/
+music_vae
