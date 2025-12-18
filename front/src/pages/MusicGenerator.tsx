@@ -4,7 +4,7 @@ import { Play, Pause, Music, Download, RotateCcw } from 'lucide-react';
 import { useAudioPlayer } from '@/contexts/AudioPlayerContext';
 import { generateMusic } from '@/callApi/generator';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export default function MusicGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
