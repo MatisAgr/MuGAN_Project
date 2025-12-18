@@ -274,7 +274,7 @@ def generate_and_save(model_path: str,
         
         sequence = generate_sequence(model, seed, num_events, temperature)
         
-        output_filename = f"generated_music_{i+1:03d}.midi"
+        output_filename = f"generated_music_{i+1:03d}.mid"
         output_path = os.path.join(output_dir, output_filename)
         
         success = sequence_to_midi(sequence, output_path, tempo_bpm=120, instrument_name="Piano")
