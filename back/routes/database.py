@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from typing import List, Optional
 from models.music_item import MusicItem
 from controllers import database_controller
 from fastapi.responses import JSONResponse
+
 
 router = APIRouter()
 
@@ -20,6 +21,5 @@ def get_music_by_id(music_id: str):
     print(f"[ROUTE /api/database/{music_id}] GET request")
     music = database_controller.get_music_by_id(music_id)
     if not music:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail=f"Music with id {music_id} not found")
     return JSONResponse(content=music.model_dump(by_alias=False))
