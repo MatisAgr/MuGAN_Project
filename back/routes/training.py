@@ -1,6 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from pydantic import BaseModel
-from controllers import training_controller
+from ..controllers import training_controller
 
 router = APIRouter()
 

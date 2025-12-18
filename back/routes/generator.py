@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from models.generator_request import GeneratorRequest, GeneratorResponse
-from controllers import generator_controller
+from ..models.generator_request import GeneratorRequest, GeneratorResponse
+from ..controllers import generator_controller
 
 router = APIRouter()
 

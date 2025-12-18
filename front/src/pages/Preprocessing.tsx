@@ -72,7 +72,13 @@ export default function Preprocessing() {
     };
   }, [isProcessing]);
 
-  const handleStartStop = async () => {
+  // When processing completes, update stats to use `setStats` and normalize avg_pitch
+  useEffect(() => {
+    if (progress !== 100) return;
+    setStats((prev) => ({ ...prev, avg_pitch: Number(prev.avg_pitch.toFixed(2)) }));
+  }, [progress, setStats]);
+
+  const handleStartStop = () => {
     if (isProcessing) {
       await stopPreprocessing();
       setIsProcessing(false);

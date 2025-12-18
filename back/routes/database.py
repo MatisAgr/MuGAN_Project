@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query
 from typing import List, Optional
-from models.music_item import MusicItem
-from controllers import database_controller
+from ..models.music_item import MusicItem
+from ..controllers import database_controller
 from fastapi.responses import JSONResponse
 
 router = APIRouter()

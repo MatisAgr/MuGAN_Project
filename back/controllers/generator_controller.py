@@ -1,13 +1,12 @@
 import uuid
 from datetime import datetime
-from models.generator_request import GeneratorRequest, GeneratorResponse
+from ..models.generator_request import GeneratorRequest, GeneratorResponse
 
 def generate_music(request: GeneratorRequest) -> GeneratorResponse:
     print(f"[GENERATOR CONTROLLER] Received generation request")
     print(f"  - Prompt: {request.prompt}")
     print(f"  - Duration: {request.duration}")
     print(f"  - Temperature: {request.temperature}")
-    
     generation_id = str(uuid.uuid4())
     
     print(f"[GENERATOR CONTROLLER] Simulating music generation...")

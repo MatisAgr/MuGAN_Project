@@ -1,8 +1,8 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import database, generator, training, audio
-import database_config
+from .routes import database, generator, training, audio
+from . import database_config
 from dotenv import load_dotenv
 
 load_dotenv()
