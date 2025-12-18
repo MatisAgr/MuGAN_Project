@@ -150,7 +150,7 @@ export default function TrainingDashboard() {
   };
 
   const startTraining = async () => {
-    const success = await apiStartTraining(totalEpochs);
+    const success = await apiStartTraining(totalEpochs, learningRate, batchSize);
     if (success) {
       setIsTraining(true);
       setTrainingData([]);
@@ -386,14 +386,16 @@ export default function TrainingDashboard() {
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Learning Rate
                 </label>
-                <input
-                  type="number"
-                  step="0.0001"
+                <select
                   value={learningRate}
                   onChange={(e) => setLearningRate(parseFloat(e.target.value))}
                   disabled={isTraining}
                   className="w-full px-4 py-2 bg-slate-900/50 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
-                />
+                >
+                  <option value={0.01}>0.01</option>
+                  <option value={0.001}>0.001</option>
+                  <option value={0.0001}>0.0001</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">

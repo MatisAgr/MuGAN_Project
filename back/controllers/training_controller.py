@@ -13,12 +13,12 @@ training_listeners: List[Callable] = []
 
 def get_training_collection():
     db = get_database()
-    return db["training_sessions"]
+    return db["training_stats"]
 
-async def _run_training_background(total_epochs: int):
+async def _run_training_background(total_epochs: int, learning_rate: float = 0.001, batch_size: int = 32):
     global current_session, training_listeners
     
-    print(f"[TRAINING CONTROLLER] Starting background training for {total_epochs} epochs")
+    print(f"[TRAINING CONTROLLER] Starting background training for {total_epochs} epochs with LR={learning_rate}, BS={batch_size}")
     
     collection = get_training_collection()
     
@@ -58,8 +58,8 @@ async def _run_training_background(total_epochs: int):
                 accuracy=round(accuracy, 4),
                 val_loss=round(val_loss, 4),
                 val_accuracy=round(val_accuracy, 4),
-                learning_rate=0.001 * (0.95 ** (epoch // 3)),
-                batch_size=32,
+                learning_rate=learning_rate,
+                batch_size=batch_size,
                 time_elapsed=elapsed_time,
                 eta=eta
             )
@@ -70,8 +70,8 @@ async def _run_training_background(total_epochs: int):
                 accuracy=stats.accuracy,
                 val_loss=stats.val_loss,
                 val_accuracy=stats.val_accuracy,
-                learning_rate=stats.learning_rate,
-                batch_size=stats.batch_size,
+                learning_rate=learning_rate,
+                batch_size=batch_size,
                 timestamp=datetime.utcnow()
             )
             
@@ -126,14 +126,14 @@ async def _run_training_background(total_epochs: int):
             current_session.status = "error"
         raise
 
-def start_training(total_epochs: int = 20) -> bool:
+def start_training(total_epochs: int = 20, learning_rate: float = 0.001, batch_size: int = 32) -> bool:
     global training_task, current_session
     
     if training_task and not training_task.done():
         print("[TRAINING CONTROLLER] Training already in progress")
         return False
     
-    training_task = asyncio.create_task(_run_training_background(total_epochs))
+    training_task = asyncio.create_task(_run_training_background(total_epochs, learning_rate, batch_size))
     print(f"[TRAINING CONTROLLER] Started background training task")
     return True
 
