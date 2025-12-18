@@ -15,9 +15,7 @@ export default function MusicGenerator() {
   const [composer, setComposer] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [duration, setDuration] = useState(30);
-  const [temperature, setTemperature] = useState(1.0);
-  const [error, setError] = useState<string | null>(null);
-  
+  const [temperature, setTemperature] = useState(1.0);  
   const { playTrack, currentTrack, isPlaying, setIsPlaying, setCurrentTrack, audioElement } = useAudioPlayer();
   
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -50,7 +48,6 @@ export default function MusicGenerator() {
   const handleGenerate = async () => {
     setIsGenerating(true);
     setGeneratedAudio(null);
-    setError(null);
     
     try {
       const response = await generateMusic({
@@ -64,7 +61,6 @@ export default function MusicGenerator() {
       setGeneratedAudio(`${API_BASE_URL}/audio/test_music.mp3`);
     } catch (err) {
       console.error('Failed to generate music:', err);
-      setError('Failed to generate music');
     } finally {
       setIsGenerating(false);
     }

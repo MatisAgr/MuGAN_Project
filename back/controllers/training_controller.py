@@ -2,9 +2,9 @@ import asyncio
 import random
 from datetime import datetime
 from typing import Optional, List, Callable
-from models.training_stats import TrainingStats
-from models.training_session import TrainingSession, TrainingEpoch, TrainingSessionResponse
-from database_config import get_database
+from ..models.training_stats import TrainingStats
+from ..models.training_session import TrainingSession, TrainingEpoch, TrainingSessionResponse
+from ..database_config import get_database
 from bson import ObjectId
 
 current_session: Optional[TrainingSession] = None

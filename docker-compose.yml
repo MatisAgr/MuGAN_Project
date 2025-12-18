@@ -1,0 +1,37 @@
+version: '3.8'
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: back/Dockerfile
+    container_name: mugan-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./back/data:/app/back/data
+      - ./back/utils/FluidR3_GM.sf2:/app/back/utils/FluidR3_GM.sf2:ro
+    environment:
+      - SOUNDFONT_PATH=/app/back/utils/FluidR3_GM.sf2
+      - MONGODB_URL=mongodb://mongo:27017
+      - MONGODB_DB_NAME=mugan_project
+    depends_on:
+      - mongo
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: front/Dockerfile
+    container_name: mugan-frontend
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+  
+  mongo:
+    image: mongo:6.0
+    container_name: mugan-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./back/mongo-data:/data/db

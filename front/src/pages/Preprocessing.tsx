@@ -33,6 +33,12 @@ export default function Preprocessing() {
     return () => clearInterval(interval);
   }, [isProcessing]);
 
+  // When processing completes, update stats to use `setStats` and normalize avg_pitch
+  useEffect(() => {
+    if (progress !== 100) return;
+    setStats((prev) => ({ ...prev, avg_pitch: Number(prev.avg_pitch.toFixed(2)) }));
+  }, [progress, setStats]);
+
   const handleStartStop = () => {
     if (isProcessing) {
       setIsProcessing(false);

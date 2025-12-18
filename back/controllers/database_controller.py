@@ -1,6 +1,6 @@
 from typing import List, Optional
-from models.music_item import MusicItem
-import database_config
+from ..models.music_item import MusicItem
+from .. import database_config
 
 def get_all_music(filter_type: Optional[str] = None, search: Optional[str] = None) -> List[MusicItem]:
     print(f"[DATABASE CONTROLLER] Getting music items from MongoDB - filter: {filter_type}, search: {search}")
