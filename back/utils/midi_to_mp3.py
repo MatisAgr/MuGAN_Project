@@ -5,6 +5,7 @@ Requirements:
     - FluidSynth installed on the system and available in PATH
     - FFmpeg installed on the system and available in PATH
     - A SoundFont (.sf2) available
+    - mutagen for audio metadata extraction
 """
 
 import os
@@ -13,22 +14,39 @@ import subprocess
 import tempfile
 from pathlib import Path
 from dotenv import load_dotenv
+from mutagen.mp3 import MP3
 
 
 load_dotenv()
 
 
 DEFAULT_SOUNDFONT = os.getenv("SOUNDFONT_PATH")
+FLUIDSYNTH_PATH = os.getenv("FLUIDSYNTH_PATH")
 # Définit back/data comme dossier de sortie par défaut
 BACK_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+
+def get_audio_duration(audio_path: str) -> float:
+    """
+    Extract MP3 duration using mutagen.
+    Returns duration in seconds.
+    """
+    try:
+        audio = MP3(audio_path)
+        duration = audio.info.length  # durée en secondes
+        return duration
+    except Exception as e:
+        print(f"[MIDI_CONVERTER] Error extracting duration: {e}")
+        return 0.0
 
 def midi_to_mp3(
     midi_path: str,
     soundfont_path: str = None,
     output_dir: str = None
-) -> str:
+) -> tuple:
     """
     Convertit un fichier MIDI en MP3 en utilisant FluidSynth et FFmpeg.
+    Retourne un tuple (mp3_path, duration_seconds).
     """
     
     # 1. Validation des entrées
@@ -56,7 +74,8 @@ def midi_to_mp3(
     # Si le MP3 existe déjà, on ne refait pas le travail
     if mp3_path.exists():
         print(f"[MIDI_CONVERTER] MP3 already exists: {mp3_path}")
-        return str(mp3_path)
+        duration_seconds = get_audio_duration(str(mp3_path))
+        return (str(mp3_path), duration_seconds)
 
     print(f"[MIDI_CONVERTER] Converting {midi_path.name}...")
 
@@ -65,8 +84,16 @@ def midi_to_mp3(
         wav_path = Path(temp_dir) / "output.wav"
 
         # --- Étape A : MIDI -> WAV (FluidSynth) ---
+        fluidsynth_exe = FLUIDSYNTH_PATH or shutil.which("fluidsynth")
+        if not fluidsynth_exe or not Path(fluidsynth_exe).exists():
+            raise RuntimeError(
+                f"fluidsynth not found. "
+                f"Set FLUIDSYNTH_PATH env variable or add to PATH. "
+                f"Expected: C:\\Program Files\\env\\fluidsynth-v2.5.1-win10-x64-cpp11\\bin\\fluidsynth.exe"
+            )
+
         fluidsynth_cmd = [
-            "fluidsynth",
+            fluidsynth_exe,
             "-ni",
             "-F", str(wav_path),
             "-r", "44100",
@@ -106,5 +133,8 @@ def midi_to_mp3(
     if not mp3_path.exists():
         raise RuntimeError("MP3 conversion failed; output file missing")
 
-    print(f"[MIDI_CONVERTER] Success: {mp3_path}")
-    return str(mp3_path)
+    # Extraire la durée réelle du fichier MP3 avec ffprobe
+    duration_seconds = get_audio_duration(str(mp3_path))
+
+    print(f"[MIDI_CONVERTER] Success: {mp3_path} (duration: {duration_seconds:.2f}s)")
+    return (str(mp3_path), duration_seconds)

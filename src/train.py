@@ -18,13 +18,14 @@ MODELS_DIR = PROJECT_DIR / "models" / "music_vae"
 
 
 class TrainingCallback(keras.callbacks.Callback):
-    def __init__(self, total_epochs: int, stats_callback: Optional[Callable] = None, start_time: float = None, should_stop: Optional[Callable] = None):
+    def __init__(self, total_epochs: int, stats_callback: Optional[Callable] = None, start_time: float = None, should_stop: Optional[Callable] = None, on_complete: Optional[Callable] = None):
         super().__init__()
         self.total_epochs = total_epochs
         self.stats_callback = stats_callback
         self.start_time = start_time or time.time()
         self.epoch_start_time = None
         self.should_stop = should_stop
+        self.on_complete = on_complete
     
     def on_epoch_begin(self, epoch, logs=None):
         self.epoch_start_time = time.time()
@@ -62,6 +63,10 @@ class TrainingCallback(keras.callbacks.Callback):
         
         if self.should_stop and self.should_stop():
             self.model.stop_training = True
+    
+    def on_train_end(self, logs=None):
+        if self.on_complete:
+            self.on_complete()
 
 
 def build_model(sequence_length: int, vocab_size: int = 128, learning_rate: float = 0.001) -> keras.Model:
@@ -187,7 +192,8 @@ def train_model(train_dir: str,
                 sequence_length: int = 32,
                 learning_rate: float = 0.001,
                 stats_callback: Optional[Callable] = None,
-                should_stop: Optional[Callable] = None):
+                should_stop: Optional[Callable] = None,
+                on_train_complete: Optional[Callable] = None):
     """
     train_dir: dossier contenant les données prétraitées
     model_dir: dossier pour sauvegarder le modèle
@@ -197,6 +203,7 @@ def train_model(train_dir: str,
     learning_rate: learning rate pour l'optimiseur Adam
     stats_callback: fonction appelée à chaque epoch avec les statistiques
     should_stop: fonction qui retourne True si l'entraînement doit être arrêté
+    on_train_complete: fonction appelée à la fin de l'entraînement (y compris avec early stopping)
     """
     os.makedirs(model_dir, exist_ok=True)
     start_time = time.time()
@@ -255,7 +262,8 @@ def train_model(train_dir: str,
             total_epochs=num_epochs,
             stats_callback=stats_callback,
             start_time=start_time,
-            should_stop=should_stop
+            should_stop=should_stop,
+            on_complete=on_train_complete
         )
         callbacks_list.append(training_cb)
     
@@ -271,7 +279,7 @@ def train_model(train_dir: str,
             batch_size=batch_size,
             validation_data=(X_val, {'pitch': y_pitch_val, 'duration': y_duration_val}),
             callbacks=callbacks_list,
-            verbose=1
+            verbose=2
         )
     except KeyboardInterrupt:
         print("\ntraining interrupted by user")

@@ -6,11 +6,18 @@ import tensorflow as tf
 from tensorflow import keras
 
 from music21 import stream, instrument, note, chord, tempo, meter
-from config import MAX_PITCHES, VOCAB_SIZE, NUM_DURATION_CLASSES, NUM_TIME_SHIFT_CLASSES, DURATION_MAP, TIME_SHIFT_MAP
 
 PROJECT_DIR = Path(__file__).parent.parent
 MODELS_DIR = PROJECT_DIR / "models" / "music_vae"
-GENERATED_DIR = PROJECT_DIR / "generated"
+GENERATED_DIR = PROJECT_DIR / "data" / "generated"
+
+DURATION_MAP = {
+    0: 0.25,
+    1: 0.5,
+    2: 1.0,
+    3: 2.0,
+    4: 4.0
+}
 
 
 def find_latest_model(model_dir: str = None) -> str:
@@ -74,51 +81,46 @@ def generate_sequence(model: keras.Model,
     Generate a sequence of music events using the trained model.
     
     Takes a seed sequence and generates additional events by:
-    1. Feeding the last 31 events to the model
-    2. Sampling predictions for each output head using temperature
+    1. Feeding the last sequence_length events to the model
+    2. Sampling predictions for pitch and duration using temperature
     3. Repeating until target length is reached
     
-    The model outputs 6 values per event:
-    - pitch_0, pitch_1, pitch_2, pitch_3: polyphonic pitches (0-129, where 129 = rest)
-    - duration: duration class (0-7)
-    - time_shift: time shift class (0-8)
+    The model outputs 2 values per event:
+    - pitch: MIDI pitch (0-127, 128 = padding)
+    - duration: duration class (0-4)
     
     Args:
-        model: Trained Keras model with 6 output heads.
-        seed_sequence: Initial sequence of shape (sequence_length, 6).
+        model: Trained Keras model with 2 output heads (pitch, duration).
+        seed_sequence: Initial sequence of shape (sequence_length, 2).
         length: Total target length of generated sequence.
         temperature: Sampling temperature (higher = more random, lower = more deterministic).
         
     Returns:
-        List of events, each event is a list of 6 integers.
+        List of events, each event is a list of 2 integers [pitch, duration_class].
     """
+    sequence_length = seed_sequence.shape[0]
     generated = [list(event) for event in seed_sequence]
     
     print(f"\ngeneration of {length} events (temperature={temperature})...")
     
-    for i in range(length - len(seed_sequence)):
-        input_seq = np.array([generated[-31:]], dtype=np.float32)
+    for i in range(length - sequence_length):
+        input_seq = np.array([generated[-sequence_length:]], dtype=np.float32)
         
         predictions = model.predict(input_seq, verbose=0)
         
-        event = []
-        for j in range(MAX_PITCHES):
-            pitch = sample_with_temperature(predictions[j][0], temperature)
-            pitch = np.clip(int(pitch), 0, 129)
-            event.append(pitch)
+        pitch_pred = predictions[0][0]
+        duration_pred = predictions[1][0]
         
-        duration = sample_with_temperature(predictions[MAX_PITCHES][0], temperature)
-        duration = np.clip(int(duration), 0, NUM_DURATION_CLASSES - 1)
-        time_shift = sample_with_temperature(predictions[MAX_PITCHES + 1][0], temperature)
-        time_shift = np.clip(int(time_shift), 0, NUM_TIME_SHIFT_CLASSES - 1)
+        pitch = sample_with_temperature(pitch_pred, temperature)
+        pitch = np.clip(int(pitch), 0, 127)
         
-        event.append(int(duration))
-        event.append(int(time_shift))
+        duration = sample_with_temperature(duration_pred, temperature)
+        duration = np.clip(int(duration), 0, 4)
         
-        generated.append(event)
+        generated.append([pitch, duration])
         
         if (i + 1) % 32 == 0:
-            print(f"  {i + 1} / {length - len(seed_sequence)} events generated")
+            print(f"  {i + 1} / {length - sequence_length} events generated")
     
     return generated
 
@@ -130,18 +132,15 @@ def sequence_to_midi(events_sequence: list,
     """
     Convert a sequence of music events to a MIDI file.
     
-    Event format: [pitch_0, pitch_1, pitch_2, pitch_3, duration_class, time_shift_class]
+    Event format: [pitch, duration_class]
     
     Rules:
     - Pitches in range [0, 127] are valid note pitches
-    - Pitch value 129 represents a rest event (all pitches = 129)
-    - Pitch value 128 represents no pitch (ignored in chord building)
-    - Multiple valid pitches create a chord
-    - Time shift is applied before placing the note/chord/rest
-    - Events with all pitches as 128 or 129 are skipped silently (padding)
+    - Pitch value 128 represents padding (skipped)
+    - Duration class maps to quarter lengths via DURATION_MAP
     
     Args:
-        events_sequence: List of events, each with 6 values.
+        events_sequence: List of events, each with 2 values [pitch, duration_class].
         output_path: Path where MIDI file will be saved.
         tempo_bpm: Tempo in beats per minute.
         instrument_name: Instrument type (Piano, Violin, etc).
@@ -166,31 +165,20 @@ def sequence_to_midi(events_sequence: list,
         current_offset = 0.0
         
         for event in events_sequence:
-            pitches = event[:MAX_PITCHES]
-            duration_class = int(event[MAX_PITCHES])
-            time_shift_class = int(event[MAX_PITCHES + 1])
+            pitch_val = int(event[0])
+            duration_class = int(event[1])
             
-            time_shift = TIME_SHIFT_MAP.get(time_shift_class, 0.0)
-            current_offset += time_shift
+            if pitch_val == 128 or pitch_val < 0:
+                continue
             
             duration = DURATION_MAP.get(duration_class, 0.5)
             
-            valid_pitches = [int(p) for p in pitches if 0 <= int(p) <= 127]
-            
-            if len(valid_pitches) == 0:
-                if int(pitches[0]) == 129:
-                    r = note.Rest(quarterLength=duration)
-                    r.offset = current_offset
-                    part.append(r)
-                # Else: all pitches are padding (128), skip silently
-            elif len(valid_pitches) == 1:
-                n = note.Note(valid_pitches[0], quarterLength=duration)
+            if 0 <= pitch_val <= 127:
+                n = note.Note(pitch_val, quarterLength=duration)
                 n.offset = current_offset
                 part.append(n)
-            else:
-                c = chord.Chord(valid_pitches, quarterLength=duration)
-                c.offset = current_offset
-                part.append(c)
+            
+            current_offset += duration
         
         score.append(part)
         
@@ -209,30 +197,23 @@ def create_random_seed_sequence(sequence_length: int = 32) -> np.ndarray:
     """
     Create a random seed sequence for generation.
     
-    Generates random events with pitches in the middle range (50-90)
-    and random duration/time_shift classes to start generation.
+    Generates random events with pitches in the middle range (50-80)
+    and random duration classes to start generation.
     
     Args:
         sequence_length: Number of events to generate for seed.
         
     Returns:
-        Array of shape (sequence_length, 6) with random events.
+        Array of shape (sequence_length, 2) with random events [pitch, duration].
     """
     seed = []
     
     for i in range(sequence_length):
-        pitch = np.random.randint(50, 90)
-        pitch_2 = 128 if np.random.rand() > 0.3 else np.random.randint(50, 90)
-        pitch_3 = 128 if np.random.rand() > 0.1 else np.random.randint(50, 90)
-        pitch_4 = 128 if np.random.rand() > 0.05 else np.random.randint(50, 90)
-        
-        duration = np.random.randint(0, NUM_DURATION_CLASSES)
-        time_shift = np.random.randint(0, NUM_TIME_SHIFT_CLASSES)
-        
-        event = [pitch, pitch_2, pitch_3, pitch_4, duration, time_shift]
-        seed.append(event)
+        pitch = np.random.randint(50, 80)
+        duration = np.random.randint(0, 5)
+        seed.append([pitch, duration])
     
-    return np.array(seed, dtype=np.int32)
+    return np.array(seed, dtype=np.float32)
 
 
 def generate_and_save(model_path: str,

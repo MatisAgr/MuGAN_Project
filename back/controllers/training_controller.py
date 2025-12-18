@@ -39,6 +39,14 @@ def _get_preprocess_fn():
         _preprocess_fn = preprocess_dataset
     return _preprocess_fn
 
+async def _notify_training_complete():
+    global training_listeners
+    for listener in training_listeners:
+        try:
+            await listener({"stopping": True})
+        except Exception as e:
+            print(f"[TRAINING CONTROLLER] Error notifying listener on complete: {e}")
+
 def get_training_collection():
     db = get_database()
     return db["training_stats"]
@@ -113,6 +121,13 @@ async def _run_training_background(total_epochs: int, learning_rate: float = 0.0
     def check_stop():
         return should_stop_training
     
+    def on_train_complete():
+        if _training_loop:
+            try:
+                asyncio.run_coroutine_threadsafe(_notify_training_complete(), _training_loop)
+            except Exception as e:
+                print(f"[TRAINING CONTROLLER] Error notifying training complete: {e}")
+    
     try:
         project_dir = Path(__file__).parent.parent.parent
         train_dir = str(project_dir / "data" / "processed")
@@ -131,7 +146,8 @@ async def _run_training_background(total_epochs: int, learning_rate: float = 0.0
             sequence_length,
             learning_rate,
             stats_callback,
-            check_stop
+            check_stop,
+            on_train_complete
         )
         
         if should_stop_training:

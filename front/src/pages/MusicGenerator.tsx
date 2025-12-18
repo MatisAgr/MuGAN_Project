@@ -11,11 +11,12 @@ export default function MusicGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
   const [generatedTitle, setGeneratedTitle] = useState<string>('');
+  const [generatedData, setGeneratedData] = useState<any>(null);
   const [title, setTitle] = useState('');
   const [composer, setComposer] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  const [duration, setDuration] = useState(30);
-  const [temperature, setTemperature] = useState(1.0);
+  const [numEvents, setNumEvents] = useState(128);
+  const [temperature, setTemperature] = useState(0.8);
   const [error, setError] = useState<string | null>(null);
   
   const { playTrack, currentTrack, isPlaying, setIsPlaying, setCurrentTrack, audioElement } = useAudioPlayer();
@@ -28,6 +29,10 @@ export default function MusicGenerator() {
       if (wavesurferRef.current) {
         wavesurferRef.current.destroy();
       }
+      
+      audioElement.src = generatedAudio;
+      audioElement.load();
+      
       wavesurferRef.current = WaveSurfer.create({
         container: waveformRef.current,
         waveColor: '#818cf8',
@@ -42,26 +47,26 @@ export default function MusicGenerator() {
         interact: true,
         dragToSeek: true,
       });
-      
-      wavesurferRef.current.load(generatedAudio);
     }
   }, [generatedAudio, audioElement]);
 
   const handleGenerate = async () => {
     setIsGenerating(true);
     setGeneratedAudio(null);
+    setGeneratedData(null);
     setError(null);
     
     try {
       const response = await generateMusic({
         title: title || undefined,
         composer: composer || undefined,
-        duration,
+        num_events: numEvents,
         temperature,
       });
       
       setGeneratedTitle(response.title);
-      setGeneratedAudio(`${API_BASE_URL}/audio/test_music.mp3`);
+      setGeneratedData(response);
+      setGeneratedAudio(`${API_BASE_URL}${response.audio_url}`);
     } catch (err) {
       console.error('Failed to generate music:', err);
       setError('Failed to generate music');
@@ -76,7 +81,7 @@ export default function MusicGenerator() {
         id: 'generated-' + Date.now(),
         title: generatedTitle || title || 'Generated Music',
         url: generatedAudio,
-        duration: duration,
+        duration: numEvents,
       };
       
       if (isPlaying && currentTrack?.url === generatedAudio) {
@@ -93,6 +98,7 @@ export default function MusicGenerator() {
       wavesurferRef.current = null;
     }
     setGeneratedAudio(null);
+    setGeneratedData(null);
     setCurrentTrack(null);
     setIsPlaying(false);
     setTitle('');
@@ -176,20 +182,21 @@ export default function MusicGenerator() {
 
               <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Nombre de notes: {duration}
+              Nombre de notes: {numEvents}
             </label>
             <input
               type="range"
-              min="10"
-              max="120"
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
+              min="64"
+              max="512"
+              step="32"
+              value={numEvents}
+              onChange={(e) => setNumEvents(Number(e.target.value))}
               disabled={isGenerating}
               className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500 disabled:opacity-50"
             />
             <div className="flex justify-between text-xs text-slate-400 mt-1">
-              <span>10</span>
-              <span>120</span>
+              <span>64</span>
+              <span>512</span>
             </div>
               </div>
 
@@ -199,8 +206,8 @@ export default function MusicGenerator() {
             </label>
             <input
               type="range"
-              min="0.5"
-              max="2.0"
+              min="0.3"
+              max="1.5"
               step="0.1"
               value={temperature}
               onChange={(e) => setTemperature(Number(e.target.value))}
@@ -239,7 +246,7 @@ export default function MusicGenerator() {
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-4">
             <p className="text-xs text-slate-400 mb-1">Nombre de notes</p>
-            <p className="text-lg font-bold text-white">{duration}</p>
+            <p className="text-lg font-bold text-white">{numEvents}</p>
               </div>
               <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-4">
             <p className="text-xs text-slate-400 mb-1">Temperature</p>
@@ -279,7 +286,7 @@ export default function MusicGenerator() {
                 <div className="mt-8 grid grid-cols-3 gap-3">
                   <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center animate-pulse">
                     <div className="text-xs text-purple-300">Notes</div>
-                    <div className="text-sm font-bold text-white mt-1">{duration}</div>
+                    <div className="text-sm font-bold text-white mt-1">{numEvents}</div>
                   </div>
                   <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 text-center animate-pulse" style={{ animationDelay: '0.2s' }}>
                     <div className="text-xs text-indigo-300">Temp</div>
@@ -332,16 +339,16 @@ export default function MusicGenerator() {
 
                   <div className="grid grid-cols-3 gap-4">
                     <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-6 text-center">
-                      <div className="text-sm text-purple-300 mb-2">Status</div>
-                      <div className="text-2xl font-semibold text-green-400">Ready</div>
+                      <div className="text-sm text-purple-300 mb-2">Format</div>
+                      <div className="text-2xl font-semibold text-white">MP3 + MIDI</div>
                     </div>
                     <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-6 text-center">
-                      <div className="text-sm text-purple-300 mb-2">Quality</div>
-                      <div className="text-2xl font-semibold text-white">High</div>
+                      <div className="text-sm text-purple-300 mb-2">Durée</div>
+                      <div className="text-2xl font-semibold text-white">{generatedData?.duration ? `${Math.floor(generatedData.duration / 60)}:${(generatedData.duration % 60).toString().padStart(2, '0')}` : '0:00'}</div>
                     </div>
                     <div className="bg-slate-900/50 border border-purple-500/30 rounded-lg p-6 text-center">
-                      <div className="text-sm text-purple-300 mb-2">Model</div>
-                      <div className="text-2xl font-semibold text-white">MuGAN v1</div>
+                      <div className="text-sm text-purple-300 mb-2">Température</div>
+                      <div className="text-2xl font-semibold text-white">{generatedData?.temperature.toFixed(1) || '0.0'}</div>
                     </div>
                   </div>
                 </div>

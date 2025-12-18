@@ -9,7 +9,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 export default function MusicDatabase() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'Train' | 'Test' | 'Validation'>('all');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'Train' | 'Test' | 'Validation' | 'Generated'>('all');
   const [musicData, setMusicData] = useState<MusicItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,8 +23,8 @@ export default function MusicDatabase() {
 
   useEffect(() => {
     const filterParam = searchParams.get('filter');
-    if (filterParam === 'Train' || filterParam === 'Test' || filterParam === 'Validation') {
-      setFilterType(filterParam as 'Train' | 'Test' | 'Validation');
+    if (filterParam === 'Train' || filterParam === 'Test' || filterParam === 'Validation' || filterParam === 'Generated') {
+      setFilterType(filterParam as 'Train' | 'Test' | 'Validation' | 'Generated');
     } else if (filterParam === 'all' || !filterParam) {
       setFilterType('all');
     }
@@ -32,14 +33,22 @@ export default function MusicDatabase() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterType]);
+  }, [debouncedQuery, filterType]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     const loadMusicData = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await fetchMusicDatabase(filterType, searchQuery);
+        const data = await fetchMusicDatabase(filterType, debouncedQuery);
         setMusicData(data);
       } catch (err) {
         console.error('Failed to fetch music data:', err);
@@ -50,9 +59,9 @@ export default function MusicDatabase() {
     };
 
     loadMusicData();
-  }, [filterType, searchQuery]);
+  }, [filterType, debouncedQuery]);
 
-  const handleFilterChange = (newFilter: 'all' | 'Train' | 'Test' | 'Validation') => {
+  const handleFilterChange = (newFilter: 'all' | 'Train' | 'Test' | 'Validation' | 'Generated') => {
     setFilterType(newFilter);
     if (newFilter === 'all') {
       searchParams.delete('filter');
@@ -118,6 +127,25 @@ export default function MusicDatabase() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getAudioUrl = (item: MusicItem): string => {
+    if (item.type === 'Generated' && item.audio_filename) {
+      return `${API_BASE_URL}/audio/generated/${item.audio_filename}`;
+    }
+    return `${API_BASE_URL}/audio/test_music.mp3`;
+  };
+
+  const handleDownload = (item: MusicItem) => {
+    const audioUrl = getAudioUrl(item);
+    const filename = item.audio_filename || item.title || 'music';
+    
+    const link = document.createElement('a');
+    link.href = audioUrl;
+    link.download = filename.endsWith('.mp3') ? filename : `${filename}.mp3`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const SortHeader = ({ column, label }: { column: string; label: string }) => (
     <th
       className="px-6 py-4 text-left font-semibold text-purple-300 cursor-pointer hover:text-purple-200 transition-colors"
@@ -163,6 +191,7 @@ export default function MusicDatabase() {
               <option value="Train">Train</option>
               <option value="Test">Test</option>
               <option value="Validation">Validation</option>
+              <option value="Generated">Generated</option>
             </select>
           </div>
         </div>
@@ -202,7 +231,7 @@ export default function MusicDatabase() {
             <div className="bg-gradient-to-br from-pink-600 to-pink-700 rounded-xl p-5 hover:shadow-lg hover:shadow-pink-500/50 transition-shadow">
               <div className="text-xs text-pink-100 mb-2">Generated</div>
               <div className="text-3xl font-bold text-white">
-                {musicData.filter(i => !['Train', 'Test', 'Validation'].includes(i.type || '')).length} {/* TODO: faire le generated pour plus tard */}
+                {musicData.filter(i => i.type === 'Generated').length}
               </div>
             </div>
           </div>
@@ -266,22 +295,27 @@ export default function MusicDatabase() {
                       </td>
                       <td className="px-6 py-4 text-slate-300">{formatDuration(item.duration || 0)}</td>
                       <td className="px-6 py-4">
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => playTrack({
-                              id: item.id?.toString() || '',
-                              title: item.title || 'Unknown',
-                              url: `${API_BASE_URL}/audio/test_music.mp3`,
-                              duration: item.duration || 0,
-                            })}
-                            className="p-2 text-indigo-400 hover:bg-indigo-500/20 rounded transition-colors cursor-pointer"
-                          >
-                            <Play className="w-5 h-5" />
-                          </button>
-                          <button className="p-2 text-green-400 hover:bg-green-500/20 rounded transition-colors cursor-pointer">
-                            <Download className="w-5 h-5" />
-                          </button>
-                        </div>
+                        {item.type === 'Generated' ? (
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => playTrack({
+                                id: item.id?.toString() || '',
+                                title: item.title || 'Unknown',
+                                url: getAudioUrl(item),
+                                duration: item.duration || 0,
+                              })}
+                              className="p-2 text-indigo-400 hover:bg-indigo-500/20 rounded transition-colors cursor-pointer"
+                            >
+                              <Play className="w-5 h-5" />
+                            </button>
+                            <button 
+                              onClick={() => handleDownload(item)}
+                              className="p-2 text-green-400 hover:bg-green-500/20 rounded transition-colors cursor-pointer"
+                            >
+                              <Download className="w-5 h-5" />
+                            </button>
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                     );

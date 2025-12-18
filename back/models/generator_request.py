@@ -2,16 +2,19 @@ from pydantic import BaseModel
 from typing import Optional
 
 
-# TODO: à revoir
 class GeneratorRequest(BaseModel):
     title: Optional[str] = None
     composer: Optional[str] = None
-    duration: int = 30
-    temperature: float = 1.0
+    num_events: int = 128
+    temperature: float = 0.8
 
 class GeneratorResponse(BaseModel):
     id: str
     title: str
-    url: str
+    composer: Optional[str] = None
+    audio_url: str
+    midi_url: str
+    num_events: int
+    temperature: float
     duration: int
     created: str

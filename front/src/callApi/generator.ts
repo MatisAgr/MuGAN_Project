@@ -3,14 +3,18 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 export interface GeneratorRequest {
   title?: string;
   composer?: string;
-  duration: number;
+  num_events: number;
   temperature: number;
 }
 
 export interface GeneratorResponse {
   id: string;
   title: string;
-  url: string;
+  composer?: string;
+  audio_url: string;
+  midi_url: string;
+  num_events: number;
+  temperature: number;
   duration: number;
   created: string;
 }
