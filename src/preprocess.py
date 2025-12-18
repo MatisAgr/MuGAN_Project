@@ -14,14 +14,8 @@ PROCESSED_DIR = PROJECT_DIR / "data" / "processed"
 
 def collect_midi_files(data_dir: str, max_files: int = 10) -> list:
     """
-    Collecte tous les fichiers MIDI dans le répertoire data et ses sous-dossiers.
-    
-    Args:
-        data_dir: Chemin vers le dossier contenant les fichiers MIDI
-        max_files: Nombre maximum de fichiers à traiter (None = tous les fichiers)
-        
-    Returns:
-        Liste des chemins vers les fichiers MIDI
+    data_dir: chemin vers le dossier contenant les fichiers MIDI
+    max_files: nombre maximum de fichiers à traiter (None = tous les fichiers)
     """
     midi_patterns = ['**/*.midi', '**/*.mid', '**/*.MIDI', '**/*.MID']
     midi_files = []
@@ -43,13 +37,7 @@ def collect_midi_files(data_dir: str, max_files: int = 10) -> list:
 
 def extract_notes_from_midi(midi_path: str) -> list:
     """
-    Extrait les notes d'un fichier MIDI.
-    
-    Args:
-        midi_path: Chemin vers le fichier MIDI
-        
-    Returns:
-        Liste de dictionnaires avec les informations des notes
+    midi_path: chemin vers le fichier MIDI
     """
     try:
         score = converter.parse(midi_path)
@@ -79,24 +67,31 @@ def extract_notes_from_midi(midi_path: str) -> list:
 
 def extract_sequences(notes_list: list, sequence_length: int = 32) -> list:
     """
-    Divise une liste de notes en séquences pour l'entraînement.
-    
-    Args:
-        notes_list: Liste des notes extraites
-        sequence_length: Longueur de chaque séquence
-        
-    Returns:
-        Liste de séquences (chacune est une liste de pitch)
+    notes_list: liste des notes extraites
+    sequence_length: longueur de chaque séquence
+    Quantise la durée en 5 classes: [0.25, 0.5, 1.0, 2.0, 4.0]
     """
+    def quantize_duration(duration):
+        if duration < 0.375:
+            return 0
+        elif duration < 0.75:
+            return 1
+        elif duration < 1.5:
+            return 2
+        elif duration < 3.0:
+            return 3
+        else:
+            return 4
+    
     sequences = []
     
     if len(notes_list) < sequence_length:
-        pitches = [n['pitch'] for n in notes_list]
-        pitches.extend([-1] * (sequence_length - len(pitches)))
-        sequences.append(pitches)
+        pairs = [[n['pitch'], quantize_duration(n['duration'])] for n in notes_list]
+        pairs.extend([[-1, 0]] * (sequence_length - len(pairs)))
+        sequences.append(pairs)
     else:
         for i in range(len(notes_list) - sequence_length + 1):
-            sequence = [n['pitch'] for n in notes_list[i:i+sequence_length]]
+            sequence = [[n['pitch'], quantize_duration(n['duration'])] for n in notes_list[i:i+sequence_length]]
             sequences.append(sequence)
     
     return sequences
@@ -107,13 +102,10 @@ def preprocess_dataset(data_dir: str,
                        sequence_length: int = 32,
                        train_split: float = 0.9):
     """
-    Pipeline complet de prétraitement des fichiers MIDI.
-    
-    Args:
-        data_dir: Dossier contenant les fichiers MIDI
-        output_dir: Dossier de sortie pour les données prétraitées
-        sequence_length: Longueur des séquences de notes
-        train_split: Proportion pour l'entraînement (reste = validation)
+    data_dir: dossier contenant les fichiers MIDI
+    output_dir: dossier de sortie pour les données prétraitées
+    sequence_length: longueur des séquences de notes
+    train_split: proportion pour l'entraînement (reste = validation)
     """
     os.makedirs(output_dir, exist_ok=True)
     
@@ -144,7 +136,7 @@ def preprocess_dataset(data_dir: str,
         print("no valid sequences created!")
         return
     
-    all_sequences = np.array(all_sequences, dtype=np.int32)
+    all_sequences = np.array(all_sequences, dtype=np.float32)
     
     np.random.shuffle(all_sequences)
     
@@ -158,8 +150,8 @@ def preprocess_dataset(data_dir: str,
     np.save(train_path, train_sequences)
     np.save(val_path, val_sequences)
     
-    print(f"training data: {train_path} ({train_sequences.shape})")
-    print(f"validation data: {val_path} ({val_sequences.shape})")
+    print(f"training data: {train_path} (shape: {train_sequences.shape})")
+    print(f"validation data: {val_path} (shape: {val_sequences.shape})")
     
     # Sauvegarder les statistiques
     stats = {

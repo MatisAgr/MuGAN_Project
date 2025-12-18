@@ -14,13 +14,8 @@ GENERATED_DIR = PROJECT_DIR / "generated"
 
 def find_latest_model(model_dir: str = None) -> str:
     """
-    Trouve le meilleur modèle entraîné (best_model.h5).
-    
-    Args:
-        model_dir: Dossier contenant les modèles (par défaut: MODELS_DIR du projet)
-        
-    Returns:
-        Chemin vers le meilleur modèle
+    prend le meilleur modèle entraîné (best_model.h5).
+    model_dir: dossier contenant les modèles (par défaut: MODELS_DIR du projet)
     """
     if model_dir is None:
         model_dir = str(MODELS_DIR)
@@ -41,13 +36,7 @@ def find_latest_model(model_dir: str = None) -> str:
 
 def load_model(model_path: str) -> keras.Model:
     """
-    Charge le modèle sauvegardé.
-    
-    Args:
-        model_path: Chemin vers le fichier .h5
-        
-    Returns:
-        Modèle Keras chargé
+    charge le modèle sauvegardé
     """
     try:
         model = keras.models.load_model(model_path)
@@ -63,31 +52,33 @@ def generate_sequence(model: keras.Model,
                       length: int = 128,
                       temperature: float = 0.7) -> list:
     """
-    Génère une séquence de notes à partir d'une graine.
-    
-    Args:
-        model: Modèle Keras entraîné
-        seed_sequence: Séquence initiale (32 notes)
-        length: Longueur totale à générer
-        temperature: Contrôle de la créativité (0.5=conservateur, 1.0=normal, 1.5=créatif)
+    génère une séquence de notes avec pitch et duration
+    model: modèle Keras entraîné avec 2 sorties
+    seed_sequence: séquence initiale (32 notes avec [pitch, duration])
+    length: longueur totale à générer
+    temperature: contrôle de la créativité
         
-    Returns:
-        Liste de notes générées
+    returns une liste de paires [pitch, duration] générées
     """
-    generated = list(seed_sequence)
+    generated = [list(note) for note in seed_sequence]
     
     print(f"\ngeneration of {length} notes (temperature={temperature})...")
     
     for i in range(length - len(seed_sequence)):
-        input_seq = np.array([generated[-32:]], dtype=np.int32)
+        input_seq = np.array([generated[-32:]], dtype=np.float32)
         
-        predictions = model.predict(input_seq, verbose=0)
+        pitch_pred, duration_pred = model.predict(input_seq, verbose=0)
         
-        predictions = np.log(predictions + 1e-10) / temperature
-        predictions = np.exp(predictions) / np.sum(np.exp(predictions))
+        pitch_pred = np.log(pitch_pred + 1e-10) / temperature
+        pitch_pred = np.exp(pitch_pred) / np.sum(np.exp(pitch_pred))
         
-        next_note = np.random.choice(predictions.shape[1], p=predictions[0])
-        generated.append(int(next_note))
+        duration_pred = np.log(duration_pred + 1e-10) / temperature
+        duration_pred = np.exp(duration_pred) / np.sum(np.exp(duration_pred))
+        
+        next_pitch = np.random.choice(pitch_pred.shape[1], p=pitch_pred[0])
+        next_duration = np.random.choice(duration_pred.shape[1], p=duration_pred[0])
+        
+        generated.append([int(next_pitch), int(next_duration)])
         
         if (i + 1) % 32 == 0:
             print(f"  {i + 1} / {length - len(seed_sequence)} notes generated")
@@ -100,23 +91,16 @@ def sequence_to_midi(notes_sequence: list,
                      tempo_bpm: int = 120,
                      instrument_name: str = "Piano") -> bool:
     """
-    Convertit une séquence de notes en fichier MIDI.
-    
-    Args:
-        notes_sequence: Liste de pitch (0-127)
-        output_path: Chemin du fichier MIDI à générer
-        tempo_bpm: Tempo en battements par minute
-        instrument_name: Nom de l'instrument (Piano, Violin, etc.)
-        
-    Returns:
-        True si succès, False sinon
+    convertit une séquence de [pitch, duration] en fichier MIDI
+    notes_sequence: liste de paires [pitch, duration]
+    output_path: chemin du fichier MIDI à générer
+    tempo_bpm: tempo en battements par minute
+    instrument_name: nom de l'instrument (Piano, Violin, etc.)
     """
     try:
-        # Créer un stream (partition musicale)
         score = stream.Score()
         part = stream.Part()
         
-        # Ajouter l'instrument
         if instrument_name.lower() == "piano":
             part.append(instrument.Piano())
         elif instrument_name.lower() == "violin":
@@ -126,15 +110,14 @@ def sequence_to_midi(notes_sequence: list,
         else:
             part.append(instrument.Instrument())
         
-        # Ajouter le tempo
         part.append(tempo.MetronomeMark(number=tempo_bpm))
-        
-        # Ajouter la signature temporelle (4/4)
         part.append(meter.TimeSignature('4/4'))
         
-        duration = 0.5
+        duration_map = {0: 0.25, 1: 0.5, 2: 1.0, 3: 2.0, 4: 4.0}
         
-        for pitch in notes_sequence:
+        for pitch, duration_encoded in notes_sequence:
+            duration = duration_map.get(int(duration_encoded), 0.5)
+            
             if pitch < 0 or pitch > 127:
                 rest = note.Rest(quarterLength=duration)
                 part.append(rest)
@@ -145,7 +128,6 @@ def sequence_to_midi(notes_sequence: list,
         score.append(part)
         
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-        
         score.write('midi', fp=output_path)
         
         print(f"midi generated: {output_path}")
@@ -162,23 +144,23 @@ def generate_and_save(model_path: str,
                       temperature: float = 0.7,
                       num_samples: int = 1):
     """
-    Pipeline complet: génère plusieurs MIDI et les sauvegarde.
-    
-    Args:
-        model_path: Chemin vers le modèle entraîné
-        output_dir: Dossier de sortie pour les MIDI générés
-        num_notes: Nombre de notes à générer
-        temperature: Contrôle de la créativité
-        num_samples: Nombre de fichiers MIDI à générer
+    pipeline complet: génère plusieurs MIDI et les sauvegarde
+        model_path: chemin vers le modèle entraîné
+        output_dir: dossier de sortie pour les MIDI générés
+        num_notes: nombre de notes à générer
+        temperature: contrôle de la créativité
+        num_samples: nombre de fichiers MIDI à générer
     """
-    # Charger le modèle
+    # charger le modèle
     model = load_model(model_path)
     if model is None:
         return
     
     os.makedirs(output_dir, exist_ok=True)
     
-    seed = np.random.randint(0, 128, size=32, dtype=np.int32)
+    seed = np.random.randint(0, 128, size=(32, 2), dtype=np.int32)
+    seed[:, 0] = np.clip(seed[:, 0], 0, 127)
+    seed[:, 1] = np.clip(seed[:, 1], 0, 4)
     
     print(f"\n{'='*60}")
     print(f"music generation")
