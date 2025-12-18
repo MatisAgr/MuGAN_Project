@@ -48,9 +48,11 @@ def midi_to_mp3(
     if not midi_path.exists():
         raise FileNotFoundError(f"MIDI file not found: {midi_path}")
 
-    if soundfont_path is None:
-        soundfont_path = DEFAULT_SOUNDFONT
-    soundfont_path = Path(soundfont_path).expanduser().resolve()
+    sf_path_str = soundfont_path or DEFAULT_SOUNDFONT
+    if not sf_path_str:
+        raise FileNotFoundError("SoundFont path not provided. Set SOUNDFONT_PATH env var or pass it to the function.")
+
+    soundfont_path = Path(sf_path_str).expanduser().resolve()
     if not soundfont_path.exists():
         raise FileNotFoundError(f"SoundFont not found: {soundfont_path}")
 
