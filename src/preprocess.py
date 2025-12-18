@@ -4,10 +4,9 @@ import argparse
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np
+import pickle
 
-from music21 import converter, note, chord, stream
-from config import MAX_PITCHES, NUM_DURATION_CLASSES, NUM_TIME_SHIFT_CLASSES
-
+from music21 import converter, instrument, note, chord
 PROJECT_DIR = Path(__file__).parent.parent
 DATA_DIR = PROJECT_DIR / "data"
 PROCESSED_DIR = PROJECT_DIR / "data" / "processed"
@@ -15,17 +14,8 @@ PROCESSED_DIR = PROJECT_DIR / "data" / "processed"
 
 def collect_midi_files(data_dir: str, max_files: int = 10) -> list:
     """
-    Collect all MIDI files from directory and subdirectories.
-    
-    Searches for files with extensions: .midi, .mid (case-insensitive).
-    Removes duplicates before limiting to max_files.
-    
-    Args:
-        data_dir: Root directory to search for MIDI files.
-        max_files: Maximum number of files to return. If None, returns all found.
-        
-    Returns:
-        List of absolute paths to MIDI files.
+    data_dir: chemin vers le dossier contenant les fichiers MIDI
+    max_files: nombre maximum de fichiers à traiter (None = tous les fichiers)
     """
     midi_patterns = ['**/*.midi', '**/*.mid', '**/*.MIDI', '**/*.MID']
     midi_files = []
@@ -33,6 +23,7 @@ def collect_midi_files(data_dir: str, max_files: int = 10) -> list:
     for pattern in midi_patterns:
         midi_files.extend(glob.glob(os.path.join(data_dir, pattern), recursive=True))
     
+    # Supprimer les doublons
     midi_files = list(set(midi_files))
     
     if max_files is not None:
@@ -44,162 +35,64 @@ def collect_midi_files(data_dir: str, max_files: int = 10) -> list:
     return midi_files
 
 
-def quantize_duration(duration: float) -> int:
+def extract_notes_from_midi(midi_path: str) -> list:
     """
-    Quantize duration to nearest class (0-7).
-    
-    Maps continuous duration to discrete classes:
-    - 0: <= 0.1875 quarter notes
-    - 1: < 0.375
-    - 2: < 0.75
-    - 3: < 1.5
-    - 4: < 3.0
-    - 5: < 6.0
-    - 6: < 12.0
-    - 7: >= 12.0
-    
-    Args:
-        duration: Duration in quarter notes.
-        
-    Returns:
-        Class index 0-7.
-    """
-    boundaries = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0]
-    for i, b in enumerate(boundaries):
-        if duration < b * 1.5:
-            return i
-    return len(boundaries)
-
-
-def quantize_time_shift(time_shift: float) -> int:
-    """
-    Quantize time shift (gap between notes) to nearest class (0-8).
-    
-    Maps continuous time shift to discrete classes:
-    - 0: < 0.0625 quarter notes (silence suppressed)
-    - 1: < 0.1875
-    - 2: < 0.375
-    - 3: < 0.75
-    - 4: < 1.5
-    - 5: < 3.0
-    - 6: < 6.0
-    - 7: < 12.0
-    - 8: >= 12.0
-    
-    Args:
-        time_shift: Time gap in quarter notes.
-        
-    Returns:
-        Class index 0-8.
-    """
-    if time_shift < 0.0625:
-        return 0
-    boundaries = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0]
-    for i, b in enumerate(boundaries):
-        if time_shift < b * 1.5:
-            return i + 1
-    return NUM_TIME_SHIFT_CLASSES - 1
-
-
-def extract_events_from_midi(midi_path: str) -> list:
-    """
-    Extract music events from a MIDI file.
-    
-    Parses MIDI file and extracts all notes, chords, and rests.
-    Creates event list with format: [pitch_0, pitch_1, pitch_2, pitch_3, duration_class, time_shift_class]
-    
-    Pitch encoding:
-    - 0-127: valid MIDI pitches
-    - 128: padding (no pitch at this position in chord)
-    - 129: rest event (all pitches = 129)
-    
-    Args:
-        midi_path: Path to MIDI file.
-        
-    Returns:
-        List of events, empty list if parsing failed.
+    midi_path: chemin vers le fichier MIDI
     """
     try:
         score = converter.parse(midi_path)
-        events = []
+        notes_list = []
         
-        all_notes = []
         for element in score.recurse().notesAndRests:
             if isinstance(element, note.Note):
-                all_notes.append({
-                    'pitches': [element.pitch.midi],
-                    'offset': float(element.offset),
-                    'duration': float(element.quarterLength),
-                    'is_rest': False
+                notes_list.append({
+                    'pitch': element.pitch.midi,
+                    'offset': element.offset,
+                    'duration': element.quarterLength,
+                    'velocity': getattr(element.volume, 'velocity', 64)
                 })
             elif isinstance(element, chord.Chord):
-                pitches = sorted([p.midi for p in element.pitches])[:MAX_PITCHES]
-                all_notes.append({
-                    'pitches': pitches,
-                    'offset': float(element.offset),
-                    'duration': float(element.quarterLength),
-                    'is_rest': False
-                })
-            elif isinstance(element, note.Rest) and element.quarterLength >= 0.25:
-                # Filter out very short rests (< 0.25 quarter length) which represent
-                # insignificant pauses and may introduce noise in the training data
-                all_notes.append({
-                    'pitches': [],
-                    'offset': float(element.offset),
-                    'duration': float(element.quarterLength),
-                    'is_rest': True
+                notes_list.append({
+                    'pitch': element.pitches[0].midi,
+                    'offset': element.offset,
+                    'duration': element.quarterLength,
+                    'velocity': getattr(element.volume, 'velocity', 64)
                 })
         
-        all_notes.sort(key=lambda x: x['offset'])
-        
-        prev_offset = 0.0
-        for n in all_notes:
-            time_shift = n['offset'] - prev_offset
-            
-            pitch_vector = [0] * MAX_PITCHES
-            if n['is_rest']:
-                pitch_vector = [129] * MAX_PITCHES
-            else:
-                for i, p in enumerate(n['pitches'][:MAX_PITCHES]):
-                    pitch_vector[i] = p
-                for i in range(len(n['pitches']), MAX_PITCHES):
-                    pitch_vector[i] = 128
-            
-            event = pitch_vector + [
-                quantize_duration(n['duration']),
-                quantize_time_shift(time_shift)
-            ]
-            events.append(event)
-            prev_offset = n['offset']
-        
-        return events
+        return notes_list
     except Exception as e:
         print(f"error reading {midi_path}: {e}")
         return []
 
 
-def extract_sequences(events: list, sequence_length: int = 32) -> list:
+def extract_sequences(notes_list: list, sequence_length: int = 32) -> list:
     """
-    Extract fixed-length sequences from a list of events.
-    
-    If events list is shorter than sequence_length, pads with padding events.
-    Otherwise, creates overlapping sequences using sliding window.
-    
-    Args:
-        events: List of events (each event is [pitch_0, pitch_1, pitch_2, pitch_3, duration, time_shift]).
-        sequence_length: Target length for each sequence.
-        
-    Returns:
-        List of sequences, each of length sequence_length.
+    notes_list: liste des notes extraites
+    sequence_length: longueur de chaque séquence
+    Quantise la durée en 5 classes: [0.25, 0.5, 1.0, 2.0, 4.0]
     """
+    def quantize_duration(duration):
+        if duration < 0.375:
+            return 0
+        elif duration < 0.75:
+            return 1
+        elif duration < 1.5:
+            return 2
+        elif duration < 3.0:
+            return 3
+        else:
+            return 4
+    
     sequences = []
     
-    if len(events) < sequence_length:
-        padded = events + [[128] * MAX_PITCHES + [0, 0]] * (sequence_length - len(events))
-        sequences.append(padded)
+    if len(notes_list) < sequence_length:
+        pairs = [[n['pitch'], quantize_duration(n['duration'])] for n in notes_list]
+        pairs.extend([[-1, 0]] * (sequence_length - len(pairs)))
+        sequences.append(pairs)
     else:
-        for i in range(len(events) - sequence_length + 1):
-            sequences.append(events[i:i+sequence_length])
+        for i in range(len(notes_list) - sequence_length + 1):
+            sequence = [[n['pitch'], quantize_duration(n['duration'])] for n in notes_list[i:i+sequence_length]]
+            sequences.append(sequence)
     
     return sequences
 
@@ -211,20 +104,12 @@ def preprocess_dataset(data_dir: str,
                        progress_callback=None,
                        max_files: int = 10):
     """
-    Preprocess all MIDI files in a directory into training sequences.
-    
-    Workflow:
-    1. Collect all MIDI files from data_dir
-    2. Extract events from each file
-    3. Create fixed-length sequences
-    4. Split into training/validation sets
-    5. Save as .npy files and generate statistics
-    
-    Args:
-        data_dir: Directory containing MIDI files.
-        output_dir: Directory to save preprocessed data.
-        sequence_length: Length of event sequences (default: 32).
-        train_split: Fraction for training (rest goes to validation, default: 0.9).
+    data_dir: dossier contenant les fichiers MIDI
+    output_dir: dossier de sortie pour les données prétraitées
+    sequence_length: longueur des séquences de notes
+    train_split: proportion pour l'entraînement (reste = validation)
+    progress_callback: fonction appelée avec (progress: int, message: str)
+    max_files: nombre maximum de fichiers à traiter
     """
     def update_progress(progress, message):
         if progress_callback:
@@ -241,16 +126,17 @@ def preprocess_dataset(data_dir: str,
         return
     
     all_sequences = []
+    all_pitches = []
     
     print("\nprocessing midi files...")
     update_progress(10, f"Extracting notes from {len(midi_files)} MIDI files...")
     for idx, midi_path in enumerate(midi_files):
         notes_list = extract_notes_from_midi(midi_path)
         
-        if len(events) == 0:
+        if len(notes_list) == 0:
             continue
         
-        sequences = extract_sequences(events, sequence_length)
+        sequences = extract_sequences(notes_list, sequence_length)
         all_sequences.extend(sequences)
         
         all_pitches.extend([n['pitch'] for n in notes_list])
@@ -292,10 +178,10 @@ def preprocess_dataset(data_dir: str,
         "train_sequences": len(train_sequences),
         "val_sequences": len(val_sequences),
         "sequence_length": sequence_length,
-        "event_size": MAX_PITCHES + 2,
-        "max_pitches_per_event": MAX_PITCHES,
-        "num_duration_classes": NUM_DURATION_CLASSES,
-        "num_time_shift_classes": NUM_TIME_SHIFT_CLASSES
+        "min_pitch": int(np.min(all_pitches)),
+        "max_pitch": int(np.max(all_pitches)),
+        "avg_pitch": float(np.mean(all_pitches)),
+        "total_notes": len(all_pitches)
     }
     
     stats_path = os.path.join(output_dir, "stats.txt")
@@ -311,13 +197,13 @@ def preprocess_dataset(data_dir: str,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocessing of MIDI files")
     parser.add_argument("--data_dir", type=str, default=str(DATA_DIR),
-                        help="directory containing MIDI files (default: data/)")
+                        help="folder containing midi files")
     parser.add_argument("--output_dir", type=str, default=str(PROCESSED_DIR),
-                        help="directory to save preprocessed data (default: data/processed/)")
+                        help="output folder for preprocessed data")
     parser.add_argument("--sequence_length", type=int, default=32,
-                        help="length of event sequences (default: 32)")
+                        help="length of note sequences")
     parser.add_argument("--train_split", type=float, default=0.9,
-                        help="fraction of data to use for training (default: 0.9)")
+                        help="proportion for training")
     
     args = parser.parse_args()
     
@@ -331,3 +217,4 @@ if __name__ == "__main__":
         sequence_length=args.sequence_length,
         train_split=args.train_split
     )
+
