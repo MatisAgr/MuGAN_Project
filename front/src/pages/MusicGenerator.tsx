@@ -1,16 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { Play, Pause, Music, Download, RotateCcw } from 'lucide-react';
+import { Play, Pause, Music, Download, RotateCcw, Sparkles } from 'lucide-react';
 import { useAudioPlayer } from '@/contexts/AudioPlayerContext';
 import { generateMusic } from '@/callApi/generator';
+import { generateMusicMetadata } from '@/callApi/ollama';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export default function MusicGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
   const [generatedTitle, setGeneratedTitle] = useState<string>('');
-  const [prompt, setPrompt] = useState('');
+  const [title, setTitle] = useState('');
+  const [composer, setComposer] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [duration, setDuration] = useState(30);
   const [temperature, setTemperature] = useState(1.0);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +54,8 @@ export default function MusicGenerator() {
     
     try {
       const response = await generateMusic({
-        prompt: prompt || undefined,
+        title: title || undefined,
+        composer: composer || undefined,
         duration,
         temperature,
       });
@@ -70,7 +74,7 @@ export default function MusicGenerator() {
     if (generatedAudio) {
       const track = {
         id: 'generated-' + Date.now(),
-        title: generatedTitle || prompt || 'Generated Music',
+        title: generatedTitle || title || 'Generated Music',
         url: generatedAudio,
         duration: duration,
       };
@@ -91,7 +95,8 @@ export default function MusicGenerator() {
     setGeneratedAudio(null);
     setCurrentTrack(null);
     setIsPlaying(false);
-    setPrompt('');
+    setTitle('');
+    setComposer('');
     if (audioElement) {
       audioElement.pause();
       audioElement.currentTime = 0;
@@ -117,17 +122,56 @@ export default function MusicGenerator() {
             
             <div className="space-y-6">
               <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Prompt (optional)
-            </label>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe the music style..."
-              disabled={isGenerating}
-              className="w-full px-4 py-3 bg-slate-900/50 border border-purple-500/30 text-white placeholder-slate-500 rounded-lg focus:outline-none focus:border-purple-500 resize-none disabled:opacity-50"
-              rows={4}
-            />
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-slate-300">
+                    Title
+                  </label>
+                  <button
+                    onClick={async () => {
+                      setIsGeneratingAI(true);
+                      try {
+                        const { title: generatedTitle, composer: generatedComposer } = await generateMusicMetadata();
+                        setTitle(generatedTitle);
+                        setComposer(generatedComposer);
+                      } catch (err) {
+                        console.error('Failed to generate AI names:', err);
+                      } finally {
+                        setIsGeneratingAI(false);
+                      }
+                    }}
+                    disabled={isGenerating || isGeneratingAI}
+                    className="p-2 bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 rounded-lg transition-all disabled:opacity-50"
+                    title="Generate with AI"
+                  >
+                    {isGeneratingAI ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-300"></div>
+                    ) : (
+                      <Sparkles size={16} />
+                    )}
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter music title..."
+                  disabled={isGenerating}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-purple-500/30 text-white placeholder-slate-500 rounded-lg focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Composer
+                </label>
+                <input
+                  type="text"
+                  value={composer}
+                  onChange={(e) => setComposer(e.target.value)}
+                  placeholder="Enter composer name..."
+                  disabled={isGenerating}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-purple-500/30 text-white placeholder-slate-500 rounded-lg focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                />
               </div>
 
               <div>
