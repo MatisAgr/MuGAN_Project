@@ -4,9 +4,15 @@
 
 </div>
 
+## Conversion de fichiers MIDI en MP3 à l'aide de l'IA
+- Download FluidR3_GM.sf2 soundfont from [here](https://member.keymusician.com/Member/FluidR3_GM/index.html) 
+
+
 ### Crédit
 
 - ANGER Matis
 - BINET Julien
 - BOURGES Carl
 - OZDEMIR Sedanur
+
+
