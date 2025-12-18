@@ -16,7 +16,7 @@ def get_music_database(
     return JSONResponse(content=[item.model_dump(by_alias=False) for item in items])
 
 @router.get("/database/{music_id}")
-def get_music_by_id(music_id: int):
+def get_music_by_id(music_id: str):
     print(f"[ROUTE /api/database/{music_id}] GET request")
     music = database_controller.get_music_by_id(music_id)
     if not music:
