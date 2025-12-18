@@ -6,13 +6,19 @@ router = APIRouter()
 
 class StartTrainingRequest(BaseModel):
     epochs: int = 20
+    learning_rate: float = 0.001
+    batch_size: int = 32
 
 @router.post("/start")
 async def start_training(request: StartTrainingRequest):
     if training_controller.is_training_active():
         raise HTTPException(status_code=400, detail="Training already in progress")
     
-    success = training_controller.start_training(total_epochs=request.epochs)
+    success = training_controller.start_training(
+        total_epochs=request.epochs,
+        learning_rate=request.learning_rate,
+        batch_size=request.batch_size
+    )
     if success:
         return {"status": "started", "epochs": request.epochs}
     else:
