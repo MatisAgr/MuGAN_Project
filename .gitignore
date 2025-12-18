@@ -3,3 +3,4 @@ node_modules
 instruction.md
 .env
 /data
+__pycache__/

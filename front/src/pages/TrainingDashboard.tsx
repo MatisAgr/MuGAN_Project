@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { Play, Square } from 'lucide-react';
+import { Play, Square, Clock } from 'lucide-react';
+import { TrainingWebSocket, TrainingStats, getLatestTrainingSession, getTrainingStatus, startTraining as apiStartTraining, stopTraining as apiStopTraining } from '../callApi/training';
 
 export default function TrainingDashboard() {
   const [isTraining, setIsTraining] = useState(false);
@@ -8,6 +9,8 @@ export default function TrainingDashboard() {
   const [learningRate, setLearningRate] = useState(0.001);
   const [batchSize, setBatchSize] = useState(32);
   const [currentEpoch, setCurrentEpoch] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [trainingStartTime, setTrainingStartTime] = useState<Date | null>(null);
   const [trainingData, setTrainingData] = useState<{
     epoch: number;
     loss: number;
@@ -15,50 +18,157 @@ export default function TrainingDashboard() {
     valLoss: number;
     valAccuracy: number;
   }[]>([]);
+  
+  const wsRef = useRef<TrainingWebSocket | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const initialData = Array.from({ length: 50 }, (_, i) => ({
-      epoch: i + 1,
-      loss: Math.max(0.1, 2.5 - i * 0.045 + Math.random() * 0.15),
-      accuracy: Math.min(0.98, 0.3 + i * 0.012 + Math.random() * 0.05),
-      valLoss: Math.max(0.15, 2.8 - i * 0.04 + Math.random() * 0.2),
-      valAccuracy: Math.min(0.95, 0.25 + i * 0.011 + Math.random() * 0.06),
-    }));
-    setTrainingData(initialData);
-    setCurrentEpoch(50);
+    loadLatestSession();
+    
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.disconnect();
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
-    if (!isTraining) return;
+    if (isTraining && trainingStartTime) {
+      timerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - trainingStartTime.getTime()) / 1000);
+        setElapsedTime(elapsed);
+      }, 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     
-    const interval = setInterval(() => {
-      setCurrentEpoch((prev) => {
-        if (prev >= totalEpochs) {
-          setIsTraining(false);
-          return prev;
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isTraining, trainingStartTime]);
+
+  const loadLatestSession = async () => {
+    const status = await getTrainingStatus();
+    
+    if (status.is_active && status.session) {
+      setIsTraining(true);
+      setTotalEpochs(status.session.total_epochs);
+      setCurrentEpoch(status.session.current_epoch);
+      setTrainingStartTime(new Date(status.session.start_time));
+      setElapsedTime(Math.floor(status.session.elapsed_time));
+      
+      const mappedData = status.session.epochs_data.map(epoch => ({
+        epoch: epoch.epoch,
+        loss: epoch.loss,
+        accuracy: epoch.accuracy,
+        valLoss: epoch.val_loss,
+        valAccuracy: epoch.val_accuracy,
+      }));
+      setTrainingData(mappedData);
+      
+      if (status.session.epochs_data.length > 0) {
+        const lastEpoch = status.session.epochs_data[status.session.epochs_data.length - 1];
+        setLearningRate(lastEpoch.learning_rate);
+        setBatchSize(lastEpoch.batch_size);
+      }
+      
+      connectWebSocket();
+    } else {
+      const latestSession = await getLatestTrainingSession();
+      
+      if (latestSession) {
+        setTotalEpochs(latestSession.total_epochs);
+        setCurrentEpoch(latestSession.current_epoch);
+        setElapsedTime(Math.floor(latestSession.elapsed_time));
+        
+        const mappedData = latestSession.epochs_data.map(epoch => ({
+          epoch: epoch.epoch,
+          loss: epoch.loss,
+          accuracy: epoch.accuracy,
+          valLoss: epoch.val_loss,
+          valAccuracy: epoch.val_accuracy,
+        }));
+        setTrainingData(mappedData);
+        
+        if (latestSession.epochs_data.length > 0) {
+          const lastEpoch = latestSession.epochs_data[latestSession.epochs_data.length - 1];
+          setLearningRate(lastEpoch.learning_rate);
+          setBatchSize(lastEpoch.batch_size);
         }
-        
-        const newEpoch = prev + 1;
-        const lastLoss = trainingData[trainingData.length - 1]?.loss || 0.5;
-        const lastAcc = trainingData[trainingData.length - 1]?.accuracy || 0.5;
-        
-        setTrainingData((data) => [
-          ...data,
+      }
+    }
+  };
+
+  const formatTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${secs}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    } else {
+      return `${secs}s`;
+    }
+  };
+
+  const connectWebSocket = () => {
+    if (!wsRef.current) {
+      wsRef.current = new TrainingWebSocket();
+    }
+    
+    wsRef.current.connect(
+      (stats: TrainingStats) => {
+        setCurrentEpoch(stats.epoch);
+        setLearningRate(stats.learning_rate);
+        setBatchSize(stats.batch_size);
+        setTrainingData((prev) => [
+          ...prev,
           {
-            epoch: newEpoch,
-            loss: Math.max(0.05, lastLoss - 0.01 + Math.random() * 0.02),
-            accuracy: Math.min(0.99, lastAcc + 0.005 + Math.random() * 0.01),
-            valLoss: Math.max(0.08, lastLoss - 0.008 + Math.random() * 0.025),
-            valAccuracy: Math.min(0.97, lastAcc + 0.004 + Math.random() * 0.012),
+            epoch: stats.epoch,
+            loss: stats.loss,
+            accuracy: stats.accuracy,
+            valLoss: stats.val_loss,
+            valAccuracy: stats.val_accuracy,
           },
         ]);
-        
-        return newEpoch;
-      });
-    }, 500);
+      },
+      () => {
+        setIsTraining(false);
+      },
+      (error: Error) => {
+        console.error('WebSocket error:', error);
+      }
+    );
+  };
 
-    return () => clearInterval(interval);
-  }, [isTraining, totalEpochs, trainingData]);
+  const startTraining = async () => {
+    const success = await apiStartTraining(totalEpochs);
+    if (success) {
+      setIsTraining(true);
+      setTrainingData([]);
+      setCurrentEpoch(0);
+      setElapsedTime(0);
+      setTrainingStartTime(new Date());
+      connectWebSocket();
+    }
+  };
+
+  const stopTraining = async () => {
+    await apiStopTraining();
+    if (wsRef.current) {
+      wsRef.current.disconnect();
+      wsRef.current = null;
+    }
+    setIsTraining(false);
+  };
 
   const lossChartOption = {
     backgroundColor: 'transparent',
@@ -224,15 +334,20 @@ export default function TrainingDashboard() {
       <div className="flex items-center justify-between px-8 py-6 border-b border-purple-500/20">
         <div>
           <h1 className="text-3xl font-bold text-white">Training Dashboard</h1>
-          <p className="text-purple-300 mt-1">
-            Epoch {currentEpoch}/{totalEpochs}
-          </p>
+          <div className="flex items-center gap-4 mt-1">
+            <p className="text-purple-300">
+              Epoch {currentEpoch}/{totalEpochs}
+            </p>
+            <div className="flex items-center gap-2 text-purple-300">
+              <Clock size={16} />
+              <span>{formatTime(elapsedTime)}</span>
+            </div>
+          </div>
         </div>
         <div className="flex gap-4">
           {!isTraining ? (
             <button
-              onClick={() => setIsTraining(true)}
-              disabled={currentEpoch >= totalEpochs}
+              onClick={startTraining}
               className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-500 hover:to-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Play size={20} />
@@ -240,7 +355,7 @@ export default function TrainingDashboard() {
             </button>
           ) : (
             <button
-              onClick={() => setIsTraining(false)}
+              onClick={stopTraining}
               className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:from-red-500 hover:to-pink-500 transition-all"
             >
               <Square size={20} />
