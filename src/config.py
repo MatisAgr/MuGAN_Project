@@ -32,3 +32,10 @@ TIME_SHIFT_MAP = {
     7: 4.0,
     8: 8.0
 }
+
+# Model hyperparameters
+LSTM_UNITS_1 = 256
+LSTM_UNITS_2 = 128
+DENSE_UNITS_1 = 256
+DENSE_UNITS_2 = 128
+DROPOUT_RATE = 0.3

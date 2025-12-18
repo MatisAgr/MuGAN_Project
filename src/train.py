@@ -6,7 +6,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
-from config import MAX_PITCHES, VOCAB_SIZE, NUM_DURATION_CLASSES, NUM_TIME_SHIFT_CLASSES
+from config import (MAX_PITCHES, VOCAB_SIZE, NUM_DURATION_CLASSES, NUM_TIME_SHIFT_CLASSES,
+                    LSTM_UNITS_1, LSTM_UNITS_2, DENSE_UNITS_1, DENSE_UNITS_2, DROPOUT_RATE)
 
 PROJECT_DIR = Path(__file__).parent.parent
 DATA_DIR = PROJECT_DIR / "data" / "processed"
@@ -19,11 +20,12 @@ def build_model(sequence_length: int, learning_rate: float = 0.001) -> keras.Mod
     
     Architecture:
     - Input: sequences of shape (sequence_length, MAX_PITCHES + 2)
-    - 2x LSTM layers (256 and 128 units) with dropout
-    - 2x Dense layers (256 and 128 units) with ReLU
+    - 2x LSTM layers (LSTM_UNITS_1 and LSTM_UNITS_2 units) with DROPOUT_RATE
+    - 2x Dense layers (DENSE_UNITS_1 and DENSE_UNITS_2 units) with ReLU
     - 6 output heads: 4 pitch heads + 1 duration head + 1 time_shift head
     
     Each output head uses softmax activation with sparse categorical crossentropy loss.
+    Hyperparameters are defined in config.py for easy tuning.
     
     Args:
         sequence_length: Length of input sequences.
@@ -34,13 +36,13 @@ def build_model(sequence_length: int, learning_rate: float = 0.001) -> keras.Mod
     """
     inputs = keras.Input(shape=(sequence_length, MAX_PITCHES + 2))
     
-    x = keras.layers.LSTM(256, return_sequences=True)(inputs)
-    x = keras.layers.Dropout(0.3)(x)
-    x = keras.layers.LSTM(128, return_sequences=False)(x)
-    x = keras.layers.Dropout(0.3)(x)
+    x = keras.layers.LSTM(LSTM_UNITS_1, return_sequences=True)(inputs)
+    x = keras.layers.Dropout(DROPOUT_RATE)(x)
+    x = keras.layers.LSTM(LSTM_UNITS_2, return_sequences=False)(x)
+    x = keras.layers.Dropout(DROPOUT_RATE)(x)
     
-    x = keras.layers.Dense(256, activation='relu')(x)
-    x = keras.layers.Dense(128, activation='relu')(x)
+    x = keras.layers.Dense(DENSE_UNITS_1, activation='relu')(x)
+    x = keras.layers.Dense(DENSE_UNITS_2, activation='relu')(x)
     
     pitch_outputs = []
     for i in range(MAX_PITCHES):
