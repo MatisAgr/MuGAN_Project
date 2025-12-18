@@ -21,8 +21,6 @@ async def _run_training_background(total_epochs: int):
     print(f"[TRAINING CONTROLLER] Starting background training for {total_epochs} epochs")
     
     collection = get_training_collection()
-    collection.delete_many({})
-    print("[TRAINING CONTROLLER] Cleared previous training sessions")
     
     current_session = TrainingSession(
         total_epochs=total_epochs,
