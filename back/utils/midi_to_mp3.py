@@ -7,6 +7,10 @@ Requirements:
 """
 
 import os
+import shutil
+import subprocess
+import tempfile
+
 from dotenv import load_dotenv
 from pathlib import Path
 from midi2audio import FluidSynth
@@ -16,8 +20,8 @@ load_dotenv()
 # Default soundfont; can be overridden with SOUNDFONT_PATH env var
 DEFAULT_SOUNDFONT = os.getenv("SOUNDFONT_PATH")
 
-# Default backend data directory: back/data
-BACK_DATA_DIR = Path(__file__).resolve().parent / "data"
+# Default backend data directory: back/data (module lives in back/utils so go up one level)
+BACK_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def midi_to_mp3(
@@ -63,8 +67,60 @@ def midi_to_mp3(
         return str(mp3_path)
 
     print(f"[MIDI_CONVERTER] Converting {midi_path} -> {mp3_path} using {soundfont_path}")
-    fs = FluidSynth(str(soundfont_path))
-    fs.midi_to_audio(str(midi_path), str(mp3_path))
+
+
+    wav_path = Path(tempfile.mktemp(suffix='.wav'))
+
+    # fluidsynth expects options before positional args; put -F and -r before soundfont and midi
+    fluidsynth_cmd = [
+        "fluidsynth",
+        "-ni",
+        "-F",
+        str(wav_path),
+        "-r",
+        "44100",
+        str(soundfont_path),
+        str(midi_path),
+    ]
+
+    try:
+        proc = subprocess.run(fluidsynth_cmd, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        # Show stderr for debugging
+        raise RuntimeError(f"fluidsynth failed: {e.stderr.strip()}")
+
+    if not wav_path.exists():
+        raise RuntimeError("fluidsynth did not produce WAV output")
+
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path is None:
+        wav_path.unlink(missing_ok=True)
+        raise RuntimeError("ffmpeg not found in PATH; required to convert WAV to MP3")
+
+    ff_cmd = [
+        ffmpeg_path,
+        "-y",
+        "-i",
+        str(wav_path),
+        "-acodec",
+        "libmp3lame",
+        "-b:a",
+        "192k",
+        str(mp3_path),
+    ]
+
+    try:
+        subprocess.run(ff_cmd, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"ffmpeg failed: {e.stderr.strip()}")
+    finally:
+        try:
+            wav_path.unlink()
+        except Exception:
+            pass
+
+    if not mp3_path.exists():
+        raise RuntimeError("MP3 conversion failed; output file missing")
 
     print(f"[MIDI_CONVERTER] Created: {mp3_path}")
     return str(mp3_path)
