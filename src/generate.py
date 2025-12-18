@@ -1,27 +1,30 @@
 import os
-import glob
 import argparse
 from pathlib import Path
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
-from music21 import stream, instrument, note, tempo, meter
+from music21 import stream, instrument, note, chord, tempo, meter
 PROJECT_DIR = Path(__file__).parent.parent
 MODELS_DIR = PROJECT_DIR / "models" / "music_vae"
 GENERATED_DIR = PROJECT_DIR / "generated"
 
+MAX_PITCHES = 4
+VOCAB_SIZE = 130
+NUM_DURATION_CLASSES = 8
+NUM_TIME_SHIFT_CLASSES = 16
+
+DURATION_MAP = {0: 0.125, 1: 0.25, 2: 0.5, 3: 1.0, 4: 2.0, 5: 4.0, 6: 8.0, 7: 16.0}
+TIME_SHIFT_MAP = {0: 0.0, 1: 0.125, 2: 0.25, 3: 0.5, 4: 1.0, 5: 2.0, 6: 4.0, 7: 8.0, 
+                  8: 16.0, 9: 0.0625, 10: 0.0625, 11: 0.0625, 12: 0.0625, 13: 0.0625, 14: 0.0625, 15: 0.0625}
+
 
 def find_latest_model(model_dir: str = None) -> str:
-    """
-    prend le meilleur modèle entraîné (best_model.h5).
-    model_dir: dossier contenant les modèles (par défaut: MODELS_DIR du projet)
-    """
     if model_dir is None:
         model_dir = str(MODELS_DIR)
     
     best_model_path = os.path.join(model_dir, "best_model.h5")
-    
     if os.path.exists(best_model_path):
         return best_model_path
     
@@ -30,14 +33,10 @@ def find_latest_model(model_dir: str = None) -> str:
         return final_model_path
     
     print(f"no model found in {model_dir}")
-    print("   please run train.py first to train a model")
     return None
 
 
 def load_model(model_path: str) -> keras.Model:
-    """
-    charge le modèle sauvegardé
-    """
     try:
         model = keras.models.load_model(model_path)
         print(f"model loaded: {model_path}")
@@ -47,56 +46,51 @@ def load_model(model_path: str) -> keras.Model:
         return None
 
 
+def sample_with_temperature(predictions, temperature):
+    predictions = np.log(predictions + 1e-10) / temperature
+    predictions = np.exp(predictions) / np.sum(np.exp(predictions))
+    return np.random.choice(len(predictions), p=predictions)
+
+
 def generate_sequence(model: keras.Model,
                       seed_sequence: np.ndarray,
                       length: int = 128,
-                      temperature: float = 0.7) -> list:
-    """
-    génère une séquence de notes avec pitch et duration
-    model: modèle Keras entraîné avec 2 sorties
-    seed_sequence: séquence initiale (32 notes avec [pitch, duration])
-    length: longueur totale à générer
-    temperature: contrôle de la créativité
-        
-    returns une liste de paires [pitch, duration] générées
-    """
-    generated = [list(note) for note in seed_sequence]
+                      temperature: float = 0.8) -> list:
+    generated = [list(event) for event in seed_sequence]
     
-    print(f"\ngeneration of {length} notes (temperature={temperature})...")
+    print(f"\ngeneration of {length} events (temperature={temperature})...")
     
     for i in range(length - len(seed_sequence)):
-        input_seq = np.array([generated[-32:]], dtype=np.float32)
+        input_seq = np.array([generated[-31:]], dtype=np.float32)
         
-        pitch_pred, duration_pred = model.predict(input_seq, verbose=0)
+        predictions = model.predict(input_seq, verbose=0)
         
-        pitch_pred = np.log(pitch_pred + 1e-10) / temperature
-        pitch_pred = np.exp(pitch_pred) / np.sum(np.exp(pitch_pred))
+        event = []
+        for j in range(MAX_PITCHES):
+            pitch = sample_with_temperature(predictions[j][0], temperature)
+            pitch = np.clip(int(pitch), 0, 129)
+            event.append(pitch)
         
-        duration_pred = np.log(duration_pred + 1e-10) / temperature
-        duration_pred = np.exp(duration_pred) / np.sum(np.exp(duration_pred))
+        duration = sample_with_temperature(predictions[MAX_PITCHES][0], temperature)
+        duration = np.clip(int(duration), 0, NUM_DURATION_CLASSES - 1)
+        time_shift = sample_with_temperature(predictions[MAX_PITCHES + 1][0], temperature)
+        time_shift = np.clip(int(time_shift), 0, NUM_TIME_SHIFT_CLASSES - 1)
         
-        next_pitch = np.random.choice(pitch_pred.shape[1], p=pitch_pred[0])
-        next_duration = np.random.choice(duration_pred.shape[1], p=duration_pred[0])
+        event.append(int(duration))
+        event.append(int(time_shift))
         
-        generated.append([int(next_pitch), int(next_duration)])
+        generated.append(event)
         
         if (i + 1) % 32 == 0:
-            print(f"  {i + 1} / {length - len(seed_sequence)} notes generated")
+            print(f"  {i + 1} / {length - len(seed_sequence)} events generated")
     
     return generated
 
 
-def sequence_to_midi(notes_sequence: list,
+def sequence_to_midi(events_sequence: list,
                      output_path: str,
                      tempo_bpm: int = 120,
                      instrument_name: str = "Piano") -> bool:
-    """
-    convertit une séquence de [pitch, duration] en fichier MIDI
-    notes_sequence: liste de paires [pitch, duration]
-    output_path: chemin du fichier MIDI à générer
-    tempo_bpm: tempo en battements par minute
-    instrument_name: nom de l'instrument (Piano, Violin, etc.)
-    """
     try:
         score = stream.Score()
         part = stream.Part()
@@ -105,25 +99,39 @@ def sequence_to_midi(notes_sequence: list,
             part.append(instrument.Piano())
         elif instrument_name.lower() == "violin":
             part.append(instrument.Violin())
-        elif instrument_name.lower() == "flute":
-            part.append(instrument.Flute())
         else:
-            part.append(instrument.Instrument())
+            part.append(instrument.Piano())
         
         part.append(tempo.MetronomeMark(number=tempo_bpm))
         part.append(meter.TimeSignature('4/4'))
         
-        duration_map = {0: 0.25, 1: 0.5, 2: 1.0, 3: 2.0, 4: 4.0}
+        current_offset = 0.0
         
-        for pitch, duration_encoded in notes_sequence:
-            duration = duration_map.get(int(duration_encoded), 0.5)
+        for event in events_sequence:
+            pitches = event[:MAX_PITCHES]
+            duration_class = int(event[MAX_PITCHES])
+            time_shift_class = int(event[MAX_PITCHES + 1])
             
-            if pitch < 0 or pitch > 127:
-                rest = note.Rest(quarterLength=duration)
-                part.append(rest)
-            else:
-                n = note.Note(pitch, quarterLength=duration)
+            time_shift = TIME_SHIFT_MAP.get(time_shift_class, 0.0)
+            current_offset += time_shift
+            
+            duration = DURATION_MAP.get(duration_class, 0.5)
+            
+            valid_pitches = [int(p) for p in pitches if 0 <= int(p) <= 127]
+            
+            if len(valid_pitches) == 0:
+                if int(pitches[0]) == 129:
+                    r = note.Rest(quarterLength=duration)
+                    r.offset = current_offset
+                    part.append(r)
+            elif len(valid_pitches) == 1:
+                n = note.Note(valid_pitches[0], quarterLength=duration)
+                n.offset = current_offset
                 part.append(n)
+            else:
+                c = chord.Chord(valid_pitches, quarterLength=duration)
+                c.offset = current_offset
+                part.append(c)
         
         score.append(part)
         
@@ -138,43 +146,52 @@ def sequence_to_midi(notes_sequence: list,
         return False
 
 
+def create_random_seed_sequence(model: keras.Model,
+                                sequence_length: int = 32,
+                                temperature: float = 0.8) -> np.ndarray:
+    seed = []
+    
+    for i in range(sequence_length):
+        pitch = np.random.randint(50, 90)
+        pitch_2 = 128 if np.random.rand() > 0.3 else np.random.randint(50, 90)
+        pitch_3 = 128 if np.random.rand() > 0.1 else np.random.randint(50, 90)
+        pitch_4 = 128
+        
+        duration = np.random.randint(0, 8)
+        time_shift = np.random.randint(0, 8)
+        
+        event = [pitch, pitch_2, pitch_3, pitch_4, duration, time_shift]
+        seed.append(event)
+    
+    return np.array(seed, dtype=np.int32)
+
+
 def generate_and_save(model_path: str,
                       output_dir: str = "../generated",
-                      num_notes: int = 256,
-                      temperature: float = 0.7,
+                      num_events: int = 256,
+                      temperature: float = 0.8,
                       num_samples: int = 1):
-    """
-    pipeline complet: génère plusieurs MIDI et les sauvegarde
-        model_path: chemin vers le modèle entraîné
-        output_dir: dossier de sortie pour les MIDI générés
-        num_notes: nombre de notes à générer
-        temperature: contrôle de la créativité
-        num_samples: nombre de fichiers MIDI à générer
-    """
-    # charger le modèle
     model = load_model(model_path)
     if model is None:
         return
     
     os.makedirs(output_dir, exist_ok=True)
     
-    seed = np.random.randint(0, 128, size=(32, 2), dtype=np.int32)
-    seed[:, 0] = np.clip(seed[:, 0], 0, 127)
-    seed[:, 1] = np.clip(seed[:, 1], 0, 4)
-    
     print(f"\n{'='*60}")
     print(f"music generation")
     print(f"{'='*60}")
     print(f"configuration:")
     print(f"   - model: {model_path}")
-    print(f"   - number of notes: {num_notes}")
+    print(f"   - number of events: {num_events}")
     print(f"   - temperature: {temperature}")
     print(f"   - files to generate: {num_samples}")
     
     for i in range(num_samples):
         print(f"\n[{i+1}/{num_samples}] generation of file {i+1}...")
         
-        sequence = generate_sequence(model, seed, num_notes, temperature)
+        seed = create_random_seed_sequence(model, 32, temperature)
+        
+        sequence = generate_sequence(model, seed, num_events, temperature)
         
         output_filename = f"generated_music_{i+1:03d}.midi"
         output_path = os.path.join(output_dir, output_filename)
@@ -182,26 +199,20 @@ def generate_and_save(model_path: str,
         success = sequence_to_midi(sequence, output_path, tempo_bpm=120, instrument_name="Piano")
         
         if success:
-            print(f"file {i+1} generated successfully!")
+            print(f"file {i+1} generated")
     
     print(f"\n{'='*60}")
-    print(f"generation complete!")
     print(f"files saved in: {output_dir}")
     print(f"{'='*60}\n")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="music generation with trained model")
-    parser.add_argument("--model_dir", type=str, default=str(MODELS_DIR),
-                        help="folder containing the trained model")
-    parser.add_argument("--output_dir", type=str, default=str(GENERATED_DIR),
-                        help="output folder for midi files")
-    parser.add_argument("--num_notes", type=int, default=256,
-                        help="number of notes to generate")
-    parser.add_argument("--temperature", type=float, default=0.7,
-                        help="temperature (0.5=conservative, 1.0=normal, 1.5=creative)")
-    parser.add_argument("--num_samples", type=int, default=1,
-                        help="number of midi files to generate")
+    parser.add_argument("--model_dir", type=str, default=str(MODELS_DIR))
+    parser.add_argument("--output_dir", type=str, default=str(GENERATED_DIR))
+    parser.add_argument("--num_events", type=int, default=256)
+    parser.add_argument("--temperature", type=float, default=0.8)
+    parser.add_argument("--num_samples", type=int, default=1)
     
     args = parser.parse_args()
     
@@ -217,8 +228,7 @@ if __name__ == "__main__":
     generate_and_save(
         model_path=model_path,
         output_dir=args.output_dir,
-        num_notes=args.num_notes,
+        num_events=args.num_events,
         temperature=args.temperature,
         num_samples=args.num_samples
     )
-
