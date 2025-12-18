@@ -207,7 +207,9 @@ def extract_sequences(events: list, sequence_length: int = 32) -> list:
 def preprocess_dataset(data_dir: str, 
                        output_dir: str,
                        sequence_length: int = 32,
-                       train_split: float = 0.9):
+                       train_split: float = 0.9,
+                       progress_callback=None,
+                       max_files: int = 10):
     """
     Preprocess all MIDI files in a directory into training sequences.
     
@@ -224,40 +226,56 @@ def preprocess_dataset(data_dir: str,
         sequence_length: Length of event sequences (default: 32).
         train_split: Fraction for training (rest goes to validation, default: 0.9).
     """
+    def update_progress(progress, message):
+        if progress_callback:
+            progress_callback(progress, message)
+    
     os.makedirs(output_dir, exist_ok=True)
     
-    midi_files = collect_midi_files(data_dir)
+    update_progress(5, "Collecting MIDI files...")
+    midi_files = collect_midi_files(data_dir, max_files=max_files)
     
     if len(midi_files) == 0:
-        print("no midi files found")
+        print("no midi files found!")
+        update_progress(0, "Error: no midi files found!")
         return
     
     all_sequences = []
     
-    print("\nprocessing midi files")
-    for midi_path in tqdm(midi_files, desc="extracting events"):
-        events = extract_events_from_midi(midi_path)
+    print("\nprocessing midi files...")
+    update_progress(10, f"Extracting notes from {len(midi_files)} MIDI files...")
+    for idx, midi_path in enumerate(midi_files):
+        notes_list = extract_notes_from_midi(midi_path)
         
         if len(events) == 0:
             continue
         
         sequences = extract_sequences(events, sequence_length)
         all_sequences.extend(sequences)
+        
+        all_pitches.extend([n['pitch'] for n in notes_list])
+        
+        progress = 10 + int((idx / len(midi_files)) * 50)
+        update_progress(progress, f"Processing file {idx + 1}/{len(midi_files)}: {os.path.basename(midi_path)}")
     
     print(f"\ntotal: {len(all_sequences)} sequences created")
     
     if len(all_sequences) == 0:
-        print("no valid sequences created")
+        print("no valid sequences created!")
+        update_progress(0, "Error: no valid sequences created!")
         return
     
-    all_sequences = np.array(all_sequences, dtype=np.int32)
+    update_progress(65, f"Converting {len(all_sequences)} sequences to numpy arrays...")
+    all_sequences = np.array(all_sequences, dtype=np.float32)
     
+    update_progress(75, "Shuffling and splitting data...")
     np.random.shuffle(all_sequences)
     
     split_idx = int(len(all_sequences) * train_split)
     train_sequences = all_sequences[:split_idx]
     val_sequences = all_sequences[split_idx:]
     
+    update_progress(85, f"Saving {len(train_sequences)} training sequences...")
     train_path = os.path.join(output_dir, "train_sequences.npy")
     val_path = os.path.join(output_dir, "validation_sequences.npy")
     
@@ -267,6 +285,7 @@ def preprocess_dataset(data_dir: str,
     print(f"training data: {train_path} (shape: {train_sequences.shape})")
     print(f"validation data: {val_path} (shape: {val_sequences.shape})")
     
+    update_progress(95, "Saving statistics...")
     stats = {
         "total_midi_files": len(midi_files),
         "total_sequences": len(all_sequences),
@@ -285,6 +304,8 @@ def preprocess_dataset(data_dir: str,
             f.write(f"{key}: {value}\n")
     
     print(f"\nstats saved in {stats_path}")
+    print("preprocessing complete!")
+    update_progress(100, "Preprocessing completed successfully!")
 
 
 if __name__ == "__main__":

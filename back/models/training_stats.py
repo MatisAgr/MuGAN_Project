@@ -11,3 +11,4 @@ class TrainingStats(BaseModel):
     batch_size: int
     time_elapsed: float
     eta: float
+    stopping: bool = False
