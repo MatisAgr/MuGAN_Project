@@ -5,7 +5,7 @@
 </div>
 
 ## Conversion de fichiers MIDI en MP3 à l'aide de l'IA
-- Download FluidR3_GM.sf2 soundfont from [here](https://member.keymusician.com/Member/FluidR3_GM/index.html) 
+- Download FluidR3_GM.sf2 soundfont from [here](https://member.keymusician.com/Member/FluidR3_GM/index.html) and place it in the back/utils/ directory.
 
 
 ### Crédit
