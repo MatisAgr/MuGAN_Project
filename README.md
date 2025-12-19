@@ -48,6 +48,12 @@ Fichiers importants
 - `front/Dockerfile` : build de l'app Vite puis image serveur statique (nginx).
 - `back/utils/midi_to_mp3.py` : utilitaire de conversion MIDI→MP3.
 
+Ollama pour la génération d'auteur et titre
+Ollama permet de bénéficier de toutes les fonctionnalités de génération d'auteur et de titre de musique. En intégrant Ollama au backend, le projet peut proposer des suggestions intelligentes et contextualisées pour les compositions générées par le modèle IA.
+
+- Télécharger Ollama : https://ollama.ai/
+- API par défaut : http://localhost:11434
+
 Comment lancer le projet (option simple via Docker Compose)
 
 ```bash
